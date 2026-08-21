@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyk.mapper.TActivityMapper">
+  <resultMap id="BaseResultMap" type="com.cyk.model.TActivity">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="owner_id" jdbcType="INTEGER" property="ownerId" />
+    <result column="name" jdbcType="VARCHAR" property="name" />
+    <result column="start_time" jdbcType="TIMESTAMP" property="startTime" />
+    <result column="end_time" jdbcType="TIMESTAMP" property="endTime" />
+    <result column="cost" jdbcType="DECIMAL" property="cost" />
+    <result column="description" jdbcType="VARCHAR" property="description" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="create_by" jdbcType="INTEGER" property="createBy" />
+    <result column="edit_time" jdbcType="TIMESTAMP" property="editTime" />
+    <result column="edit_by" jdbcType="INTEGER" property="editBy" />
+  </resultMap>
+  
+  <resultMap id="ActivityResultMap" type="com.cyk.model.TActivity">
+    <id column="id" jdbcType="INTEGER" property="id"/>
+    <result column="owner_id" jdbcType="INTEGER" property="ownerId" />
+    <result column="name" jdbcType="VARCHAR" property="name" />
+    <result column="start_time" jdbcType="TIMESTAMP" property="startTime" />
+    <result column="end_time" jdbcType="TIMESTAMP" property="endTime" />
+    <result column="cost" jdbcType="DECIMAL" property="cost" />
+    <result column="description" jdbcType="VARCHAR" property="description" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="create_by" jdbcType="INTEGER" property="createBy" />
+    <result column="edit_time" jdbcType="TIMESTAMP" property="editTime" />
+    <result column="edit_by" jdbcType="INTEGER" property="editBy" />
+    <!--一对一关联-->
+    <association property="ownerDo" javaType="com.cyk.model.TUser">
+      <id column="id" jdbcType="INTEGER" property="id"/>
+      <result column="ownerName" jdbcType="INTEGER" property="name" />
+    </association>
+  </resultMap>
+  <sql id="Base_Column_List">
+    id, owner_id, `name`, start_time, end_time, cost, description, create_time, create_by, 
+    edit_time, edit_by
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from t_activity
+    where id = #{id,jdbcType=INTEGER}
+  </select>
+
+    <select id="selectActivityByPage" resultMap="ActivityResultMap">
+      select
+        ta.*,
+        tu.id ownerId,tu.name ownerName
+      from t_activity ta
+      left join t_user tu on ta.owner_id = tu.id
+      <where>
+        <if test="ownerId != null">
+          and ta.owner_id = #{ownerId}
+        </if>
+        <if test="name != null">
+          and ta.name like concat ('%', #{name}, '%')
+        </if>
+        <if test="startTime != null">
+          <![CDATA[ and ta.start_time >= #{startTime} ]]>  <!-- 小于号要用转义 -->
+        </if>
+        <if test="endTime != null">
+          <![CDATA[   and ta.end_time <= #{endTime}  ]]>
+        </if>
+        <if test="budget != null">
+          and ta.cost >= #{budget}
+        </if>
+        <if test="createTime != null">
+          and ta.create_time >= #{createTime}
+        </if>
+        ${filterSQL}
+      </where>
+    </select>
+
+    <select id="selectOngoingActivity" resultType="com.cyk.model.TActivity" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List" />
+        from t_activity
+        where  <![CDATA[  start_time <= now() and end_time >= now() ]]>
+    </select>
+
+  <select id="selecOngoingActivity" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_activity
+    where  <![CDATA[  start_time <= now() and end_time >= now() ]]>
+  </select>
+
+  <select id="selectByCount" resultType="java.lang.Integer">
+    select
+      count(0)
+    from t_activity
+  </select>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from t_activity
+    where id = #{id,jdbcType=INTEGER}
+  </delete>
+  <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TActivity" useGeneratedKeys="true">
+    insert into t_activity (owner_id, `name`, start_time, 
+      end_time, cost, description, 
+      create_time, create_by, edit_time, 
+      edit_by)
+    values (#{ownerId,jdbcType=INTEGER}, #{name,jdbcType=VARCHAR}, #{startTime,jdbcType=TIMESTAMP}, 
+      #{endTime,jdbcType=TIMESTAMP}, #{cost,jdbcType=DECIMAL}, #{description,jdbcType=VARCHAR}, 
+      #{createTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=INTEGER}, #{editTime,jdbcType=TIMESTAMP}, 
+      #{editBy,jdbcType=INTEGER})
+  </insert>
+  <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TActivity" useGeneratedKeys="true">
+    insert into t_activity
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="ownerId != null">
+        owner_id,
+      </if>
+      <if test="name != null">
+        `name`,
+      </if>
+      <if test="startTime != null">
+        start_time,
+      </if>
+      <if test="endTime != null">
+        end_time,
+      </if>
+      <if test="cost != null">
+        cost,
+      </if>
+      <if test="description != null">
+        description,
+      </if>
+      <if test="createTime != null">
+        create_time,
+      </if>
+      <if test="createBy != null">
+        create_by,
+      </if>
+      <if test="editTime != null">
+        edit_time,
+      </if>
+      <if test="editBy != null">
+        edit_by,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="ownerId != null">
+        #{ownerId,jdbcType=INTEGER},
+      </if>
+      <if test="name != null">
+        #{name,jdbcType=VARCHAR},
+      </if>
+      <if test="startTime != null">
+        #{startTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="endTime != null">
+        #{endTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="cost != null">
+        #{cost,jdbcType=DECIMAL},
+      </if>
+      <if test="description != null">
+        #{description,jdbcType=VARCHAR},
+      </if>
+      <if test="createTime != null">
+        #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createBy != null">
+        #{createBy,jdbcType=INTEGER},
+      </if>
+      <if test="editTime != null">
+        #{editTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="editBy != null">
+        #{editBy,jdbcType=INTEGER},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TActivity">
+    update t_activity
+    <set>
+      <if test="ownerId != null">
+        owner_id = #{ownerId,jdbcType=INTEGER},
+      </if>
+      <if test="name != null">
+        `name` = #{name,jdbcType=VARCHAR},
+      </if>
+      <if test="startTime != null">
+        start_time = #{startTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="endTime != null">
+        end_time = #{endTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="cost != null">
+        cost = #{cost,jdbcType=DECIMAL},
+      </if>
+      <if test="description != null">
+        description = #{description,jdbcType=VARCHAR},
+      </if>
+      <if test="createTime != null">
+        create_time = #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createBy != null">
+        create_by = #{createBy,jdbcType=INTEGER},
+      </if>
+      <if test="editTime != null">
+        edit_time = #{editTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="editBy != null">
+        edit_by = #{editBy,jdbcType=INTEGER},
+      </if>
+    </set>
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.cyk.model.TActivity">
+    update t_activity
+    set owner_id = #{ownerId,jdbcType=INTEGER},
+      `name` = #{name,jdbcType=VARCHAR},
+      start_time = #{startTime,jdbcType=TIMESTAMP},
+      end_time = #{endTime,jdbcType=TIMESTAMP},
+      cost = #{cost,jdbcType=DECIMAL},
+      description = #{description,jdbcType=VARCHAR},
+      create_time = #{createTime,jdbcType=TIMESTAMP},
+      create_by = #{createBy,jdbcType=INTEGER},
+      edit_time = #{editTime,jdbcType=TIMESTAMP},
+      edit_by = #{editBy,jdbcType=INTEGER}
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+</mapper>

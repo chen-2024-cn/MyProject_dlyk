@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyk.mapper.TDicValueMapper">
+  <resultMap id="BaseResultMap" type="com.cyk.model.TDicValue">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="type_code" jdbcType="VARCHAR" property="typeCode" />
+    <result column="type_value" jdbcType="VARCHAR" property="typeValue" />
+    <result column="order" jdbcType="INTEGER" property="order" />
+    <result column="remark" jdbcType="VARCHAR" property="remark" />
+  </resultMap>
+  <sql id="Base_Column_List">
+    id, type_code, type_value, `order`, remark
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from t_dic_value
+    where id = #{id,jdbcType=INTEGER}
+  </select>
+
+
+
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from t_dic_value
+    where id = #{id,jdbcType=INTEGER}
+  </delete>
+  <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TDicValue" useGeneratedKeys="true">
+    insert into t_dic_value (type_code, type_value, `order`, 
+      remark)
+    values (#{typeCode,jdbcType=VARCHAR}, #{typeValue,jdbcType=VARCHAR}, #{order,jdbcType=INTEGER}, 
+      #{remark,jdbcType=VARCHAR})
+  </insert>
+  <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TDicValue" useGeneratedKeys="true">
+    insert into t_dic_value
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="typeCode != null">
+        type_code,
+      </if>
+      <if test="typeValue != null">
+        type_value,
+      </if>
+      <if test="order != null">
+        `order`,
+      </if>
+      <if test="remark != null">
+        remark,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="typeCode != null">
+        #{typeCode,jdbcType=VARCHAR},
+      </if>
+      <if test="typeValue != null">
+        #{typeValue,jdbcType=VARCHAR},
+      </if>
+      <if test="order != null">
+        #{order,jdbcType=INTEGER},
+      </if>
+      <if test="remark != null">
+        #{remark,jdbcType=VARCHAR},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TDicValue">
+    update t_dic_value
+    <set>
+      <if test="typeCode != null">
+        type_code = #{typeCode,jdbcType=VARCHAR},
+      </if>
+      <if test="typeValue != null">
+        type_value = #{typeValue,jdbcType=VARCHAR},
+      </if>
+      <if test="order != null">
+        `order` = #{order,jdbcType=INTEGER},
+      </if>
+      <if test="remark != null">
+        remark = #{remark,jdbcType=VARCHAR},
+      </if>
+    </set>
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.cyk.model.TDicValue">
+    update t_dic_value
+    set type_code = #{typeCode,jdbcType=VARCHAR},
+      type_value = #{typeValue,jdbcType=VARCHAR},
+      `order` = #{order,jdbcType=INTEGER},
+      remark = #{remark,jdbcType=VARCHAR}
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+
+  <select id="selectDicValueByPage" parameterType="com.cyk.query.DicValueQuery" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_dic_value
+    where 1=1
+    <if test="typeCode != null and typeCode != ''">
+      and type_code = #{typeCode}
+    </if>
+    order by `order`
+  </select>
+
+  <select id="selectByTypeCode" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_dic_value
+    where type_code = #{typeCode}
+    order by `order`
+  </select>
+</mapper>

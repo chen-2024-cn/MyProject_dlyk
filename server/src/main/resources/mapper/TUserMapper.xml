@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyk.mapper.TUserMapper">
+    <resultMap id="BaseResultMap" type="com.cyk.model.TUser">
+        <id column="id" jdbcType="INTEGER" property="id"/>
+        <result column="login_act" jdbcType="VARCHAR" property="loginAct"/>
+        <result column="login_pwd" jdbcType="VARCHAR" property="loginPwd"/>
+        <result column="name" jdbcType="VARCHAR" property="name"/>
+        <result column="phone" jdbcType="VARCHAR" property="phone"/>
+        <result column="email" jdbcType="VARCHAR" property="email"/>
+        <result column="account_no_expired" jdbcType="INTEGER" property="accountNoExpired"/>
+        <result column="credentials_no_expired" jdbcType="INTEGER" property="credentialsNoExpired"/>
+        <result column="account_no_locked" jdbcType="INTEGER" property="accountNoLocked"/>
+        <result column="account_enabled" jdbcType="INTEGER" property="accountEnabled"/>
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="create_by" jdbcType="INTEGER" property="createBy"/>
+        <result column="edit_time" jdbcType="TIMESTAMP" property="editTime"/>
+        <result column="edit_by" jdbcType="INTEGER" property="editBy"/>
+        <result column="last_login_time" jdbcType="TIMESTAMP" property="lastLoginTime"/>
+    </resultMap>
+    <resultMap id="UserResultMap" type="com.cyk.model.TUser">
+        <id column="id" jdbcType="INTEGER" property="id"/>
+        <result column="login_act" jdbcType="VARCHAR" property="loginAct"/>
+        <result column="login_pwd" jdbcType="VARCHAR" property="loginPwd"/>
+        <result column="name" jdbcType="VARCHAR" property="name"/>
+        <result column="phone" jdbcType="VARCHAR" property="phone"/>
+        <result column="email" jdbcType="VARCHAR" property="email"/>
+        <result column="account_no_expired" jdbcType="INTEGER" property="accountNoExpired"/>
+        <result column="credentials_no_expired" jdbcType="INTEGER" property="credentialsNoExpired"/>
+        <result column="account_no_locked" jdbcType="INTEGER" property="accountNoLocked"/>
+        <result column="account_enabled" jdbcType="INTEGER" property="accountEnabled"/>
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="create_by" jdbcType="INTEGER" property="createBy"/>
+        <result column="edit_time" jdbcType="TIMESTAMP" property="editTime"/>
+        <result column="edit_by" jdbcType="INTEGER" property="editBy"/>
+        <result column="last_login_time" jdbcType="TIMESTAMP" property="lastLoginTime"/>
+        <!--一对一关联-->
+        <association property="createByUser" javaType="com.cyk.model.TUser">
+            <id column="createById" jdbcType="INTEGER" property="id"/>
+            <result column="createByName" jdbcType="VARCHAR" property="name"/>
+        </association>
+        <association property="editByUser" javaType="com.cyk.model.TUser">
+            <id column="editById" jdbcType="INTEGER" property="id"/>
+            <result column="editByName" jdbcType="VARCHAR" property="name"/>
+        </association>
+    </resultMap>
+    <sql id="Base_Column_List">
+        id
+        , login_act, login_pwd, `name`, phone, email, account_no_expired, credentials_no_expired,
+    account_no_locked, account_enabled, create_time, create_by, edit_time, edit_by, last_login_time
+    </sql>
+    <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from t_user
+        where id = #{id,jdbcType=INTEGER}
+    </select>
+
+
+    <select id="selectByLoginAct" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from t_user
+        where login_act = #{loginAct, jdbcType=VARCHAR}
+    </select>
+
+
+        <select id="selectUserByPage" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from t_user tu
+        <where>
+            ${filterSQL}
+        </where>
+    </select>
+
+    <select id="selectDetailById" resultMap="UserResultMap">
+        select tu.*,
+               tu2.id   createById,
+               tu2.name createByName,
+               tu3.id   editById,
+               tu3.name editByName
+        from t_user tu
+                 left join t_user tu2 on tu.create_by = tu2.id
+                 left join t_user tu3 on tu.edit_by = tu3.id
+        where tu.id = #{id,jdbcType=INTEGER}
+    </select>
+
+    <select id="selectByOwner" resultMap="BaseResultMap">
+        select
+            id, name
+        from t_user
+    </select>
+
+    <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+        delete
+        from t_user
+        where id = #{id,jdbcType=INTEGER}
+    </delete>
+
+    <delete id="deleteByIds" parameterType="java.util.List">
+        delete
+        from t_user
+        where id in
+        <foreach collection="list" item="id" open="(" close=")" separator=",">
+            #{id,jdbcType=INTEGER}
+        </foreach>
+
+    </delete>
+
+    <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TUser" useGeneratedKeys="true">
+        insert into t_user (login_act, login_pwd, `name`,
+                            phone, email, account_no_expired,
+                            credentials_no_expired, account_no_locked,
+                            account_enabled, create_time, create_by,
+                            edit_time, edit_by, last_login_time)
+        values (#{loginAct,jdbcType=VARCHAR}, #{loginPwd,jdbcType=VARCHAR}, #{name,jdbcType=VARCHAR},
+                #{phone,jdbcType=VARCHAR}, #{email,jdbcType=VARCHAR}, #{accountNoExpired,jdbcType=INTEGER},
+                #{credentialsNoExpired,jdbcType=INTEGER}, #{accountNoLocked,jdbcType=INTEGER},
+                #{accountEnabled,jdbcType=INTEGER}, #{createTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=INTEGER},
+                #{editTime,jdbcType=TIMESTAMP}, #{editBy,jdbcType=INTEGER}, #{lastLoginTime,jdbcType=TIMESTAMP})
+    </insert>
+    <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TUser"
+            useGeneratedKeys="true">
+        insert into t_user
+        <trim prefix="(" suffix=")" suffixOverrides=",">
+            <if test="loginAct != null">
+                login_act,
+            </if>
+            <if test="loginPwd != null">
+                login_pwd,
+            </if>
+            <if test="name != null">
+                `name`,
+            </if>
+            <if test="phone != null">
+                phone,
+            </if>
+            <if test="email != null">
+                email,
+            </if>
+            <if test="accountNoExpired != null">
+                account_no_expired,
+            </if>
+            <if test="credentialsNoExpired != null">
+                credentials_no_expired,
+            </if>
+            <if test="accountNoLocked != null">
+                account_no_locked,
+            </if>
+            <if test="accountEnabled != null">
+                account_enabled,
+            </if>
+            <if test="createTime != null">
+                create_time,
+            </if>
+            <if test="createBy != null">
+                create_by,
+            </if>
+            <if test="editTime != null">
+                edit_time,
+            </if>
+            <if test="editBy != null">
+                edit_by,
+            </if>
+            <if test="lastLoginTime != null">
+                last_login_time,
+            </if>
+        </trim>
+        <trim prefix="values (" suffix=")" suffixOverrides=",">
+            <if test="loginAct != null">
+                #{loginAct,jdbcType=VARCHAR},
+            </if>
+            <if test="loginPwd != null">
+                #{loginPwd,jdbcType=VARCHAR},
+            </if>
+            <if test="name != null">
+                #{name,jdbcType=VARCHAR},
+            </if>
+            <if test="phone != null">
+                #{phone,jdbcType=VARCHAR},
+            </if>
+            <if test="email != null">
+                #{email,jdbcType=VARCHAR},
+            </if>
+            <if test="accountNoExpired != null">
+                #{accountNoExpired,jdbcType=INTEGER},
+            </if>
+            <if test="credentialsNoExpired != null">
+                #{credentialsNoExpired,jdbcType=INTEGER},
+            </if>
+            <if test="accountNoLocked != null">
+                #{accountNoLocked,jdbcType=INTEGER},
+            </if>
+            <if test="accountEnabled != null">
+                #{accountEnabled,jdbcType=INTEGER},
+            </if>
+            <if test="createTime != null">
+                #{createTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="createBy != null">
+                #{createBy,jdbcType=INTEGER},
+            </if>
+            <if test="editTime != null">
+                #{editTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="editBy != null">
+                #{editBy,jdbcType=INTEGER},
+            </if>
+            <if test="lastLoginTime != null">
+                #{lastLoginTime,jdbcType=TIMESTAMP},
+            </if>
+        </trim>
+    </insert>
+    <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TUser">
+        update t_user
+        <set>
+            <if test="loginAct != null">
+                login_act = #{loginAct,jdbcType=VARCHAR},
+            </if>
+            <if test="loginPwd != null and loginPwd != ''">
+                login_pwd = #{loginPwd,jdbcType=VARCHAR},
+            </if>
+            <if test="name != null">
+                `name` = #{name,jdbcType=VARCHAR},
+            </if>
+            <if test="phone != null">
+                phone = #{phone,jdbcType=VARCHAR},
+            </if>
+            <if test="email != null">
+                email = #{email,jdbcType=VARCHAR},
+            </if>
+            <if test="accountNoExpired != null">
+                account_no_expired = #{accountNoExpired,jdbcType=INTEGER},
+            </if>
+            <if test="credentialsNoExpired != null">
+                credentials_no_expired = #{credentialsNoExpired,jdbcType=INTEGER},
+            </if>
+            <if test="accountNoLocked != null">
+                account_no_locked = #{accountNoLocked,jdbcType=INTEGER},
+            </if>
+            <if test="accountEnabled != null">
+                account_enabled = #{accountEnabled,jdbcType=INTEGER},
+            </if>
+            <if test="createTime != null">
+                create_time = #{createTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="createBy != null">
+                create_by = #{createBy,jdbcType=INTEGER},
+            </if>
+            <if test="editTime != null">
+                edit_time = #{editTime,jdbcType=TIMESTAMP},
+            </if>
+            <if test="editBy != null">
+                edit_by = #{editBy,jdbcType=INTEGER},
+            </if>
+            <if test="lastLoginTime != null">
+                last_login_time = #{lastLoginTime,jdbcType=TIMESTAMP},
+            </if>
+        </set>
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+    <update id="updateByPrimaryKey" parameterType="com.cyk.model.TUser">
+        update t_user
+        set login_act              = #{loginAct,jdbcType=VARCHAR},
+            login_pwd              = #{loginPwd,jdbcType=VARCHAR},
+            `name`                 = #{name,jdbcType=VARCHAR},
+            phone                  = #{phone,jdbcType=VARCHAR},
+            email                  = #{email,jdbcType=VARCHAR},
+            account_no_expired     = #{accountNoExpired,jdbcType=INTEGER},
+            credentials_no_expired = #{credentialsNoExpired,jdbcType=INTEGER},
+            account_no_locked      = #{accountNoLocked,jdbcType=INTEGER},
+            account_enabled        = #{accountEnabled,jdbcType=INTEGER},
+            create_time            = #{createTime,jdbcType=TIMESTAMP},
+            create_by              = #{createBy,jdbcType=INTEGER},
+            edit_time              = #{editTime,jdbcType=TIMESTAMP},
+            edit_by                = #{editBy,jdbcType=INTEGER},
+            last_login_time        = #{lastLoginTime,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+</mapper>

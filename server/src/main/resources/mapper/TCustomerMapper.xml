@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyk.mapper.TCustomerMapper">
+  <resultMap id="BaseResultMap" type="com.cyk.model.TCustomer">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="clue_id" jdbcType="INTEGER" property="clueId" />
+    <result column="product" jdbcType="INTEGER" property="product" />
+    <result column="description" jdbcType="VARCHAR" property="description" />
+    <result column="next_contact_time" jdbcType="TIMESTAMP" property="nextContactTime" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="create_by" jdbcType="INTEGER" property="createBy" />
+    <result column="edit_time" jdbcType="TIMESTAMP" property="editTime" />
+    <result column="edit_by" jdbcType="INTEGER" property="editBy" />
+  </resultMap>
+
+  <resultMap id="CustomerResultMap" type="com.cyk.model.TCustomer">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="clue_id" jdbcType="INTEGER" property="clueId" />
+    <result column="product" jdbcType="INTEGER" property="product" />
+    <result column="description" jdbcType="VARCHAR" property="description" />
+    <result column="next_contact_time" jdbcType="TIMESTAMP" property="nextContactTime" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="create_by" jdbcType="INTEGER" property="createBy" />
+    <result column="edit_time" jdbcType="TIMESTAMP" property="editTime" />
+    <result column="edit_by" jdbcType="INTEGER" property="editBy" />
+    <!--一对一关联线索-->
+    <association property="clueDO" javaType="com.cyk.model.TClue">
+      <id column="clueId" jdbcType="INTEGER" property="id" />
+      <result column="full_name" jdbcType="VARCHAR" property="fullName" />
+      <result column="phone" jdbcType="VARCHAR" property="phone" />
+      <result column="weixin" jdbcType="VARCHAR" property="weixin" />
+      <result column="qq" jdbcType="VARCHAR" property="qq" />
+      <result column="email" jdbcType="VARCHAR" property="email" />
+      <result column="age" jdbcType="INTEGER" property="age" />
+      <result column="job" jdbcType="VARCHAR" property="job" />
+      <result column="year_income" jdbcType="DECIMAL" property="yearIncome" />
+      <result column="address" jdbcType="VARCHAR" property="address" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="ownerDO" javaType="com.cyk.model.TUser">
+      <id column="ownerId" jdbcType="INTEGER" property="id" />
+      <result column="ownerName" jdbcType="VARCHAR" property="name" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="activityDO" javaType="com.cyk.model.TActivity">
+      <id column="activityId" jdbcType="INTEGER" property="id" />
+      <result column="activityName" jdbcType="VARCHAR" property="name" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="appellationDO" javaType="com.cyk.model.TDicValue">
+      <id column="appellationId" jdbcType="INTEGER" property="id" />
+      <result column="appellationName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="needLoanDO" javaType="com.cyk.model.TDicValue">
+      <id column="needLoanId" jdbcType="INTEGER" property="id" />
+      <result column="needLoanName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="intentionStateDO" javaType="com.cyk.model.TDicValue">
+      <id column="intentionStateId" jdbcType="INTEGER" property="id" />
+      <result column="intentionStateName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="stateDO" javaType="com.cyk.model.TDicValue">
+      <id column="stateId" jdbcType="INTEGER" property="id" />
+      <result column="stateName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="sourceDO" javaType="com.cyk.model.TDicValue">
+      <id column="sourceId" jdbcType="INTEGER" property="id" />
+      <result column="sourceName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="intentionProductDO" javaType="com.cyk.model.TProduct">
+      <id column="intentionProductId" jdbcType="INTEGER" property="id" />
+      <result column="intentionProductName" jdbcType="VARCHAR" property="name" />
+    </association>
+  </resultMap>
+
+  <sql id="Base_Column_List">
+    id, clue_id, product, description, next_contact_time, create_time, create_by, edit_time, 
+    edit_by
+  </sql>
+  <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from t_customer
+    where id = #{id,jdbcType=INTEGER}
+  </select>
+
+  <select id="selectCustomerPage" parameterType="java.lang.Integer" resultMap="CustomerResultMap">
+    select
+      tct.*,
+      tc.id clueId, tc.full_name, tc.phone, tc.weixin,
+      tu1.id ownerId, tu1.name ownerName,
+      ta.id activityId, ta.name activityName,
+      tdv.id appellationId, tdv.type_value appellationName,
+      tdv2.id needLoanId, tdv2.type_value needLoanName,
+      tdv3.id intentionStateId, tdv3.type_value intentionStateName,
+      tdv4.id stateId, tdv4.type_value stateName,
+      tdv5.id sourceId, tdv5.type_value sourceName,
+      tp.id intentionProductId, tp.name intentionProductName
+    from t_customer tct left join t_clue tc on tct.clue_id = tc.id
+                        left join t_user tu1 on tc.owner_id = tu1.id
+                        left join t_activity ta on tc.activity_id = ta.id
+                        left join t_dic_value tdv on tc.appellation = tdv.id
+                        left join t_dic_value tdv2 on tc.need_loan = tdv2.id
+                        left join t_dic_value tdv3 on tc.intention_state = tdv3.id
+                        left join t_dic_value tdv4 on tc.state = tdv4.id
+                        left join t_dic_value tdv5 on tc.source = tdv5.id
+                        left join t_product tp on tct.product = tp.id
+  </select>
+
+  <select id="selectCustomerByExcel" parameterType="java.util.List" resultMap="CustomerResultMap">
+    select
+    tct.*,
+    tc.id clueId, tc.full_name, tc.phone, tc.weixin, tc.qq, tc.email, tc.age, tc.job, tc.year_income, tc.address,
+    tu1.id ownerId, tu1.name ownerName,
+    ta.id activityId, ta.name activityName,
+    tdv.id appellationId, tdv.type_value appellationName,
+    tdv2.id needLoanId, tdv2.type_value needLoanName,
+    tdv3.id intentionStateId, tdv3.type_value intentionStateName,
+    tdv4.id stateId, tdv4.type_value stateName,
+    tdv5.id sourceId, tdv5.type_value sourceName,
+    tp.id intentionProductId, tp.name intentionProductName
+    from t_customer tct left join t_clue tc on tct.clue_id = tc.id
+    left join t_user tu1 on tc.owner_id = tu1.id
+    left join t_activity ta on tc.activity_id = ta.id
+    left join t_dic_value tdv on tc.appellation = tdv.id
+    left join t_dic_value tdv2 on tc.need_loan = tdv2.id
+    left join t_dic_value tdv3 on tc.intention_state = tdv3.id
+    left join t_dic_value tdv4 on tc.state = tdv4.id
+    left join t_dic_value tdv5 on tc.source = tdv5.id
+    left join t_product tp on tct.product = tp.id
+    <where>
+      <if test="idList != null and idList.size() > 0">
+        and tct.id in
+        <foreach collection="idList" item="id" open="(" close=")" separator=",">
+          #{id}
+        </foreach>
+      </if>
+    </where>
+  </select>
+
+  <select id="selectCustomerById" parameterType="java.lang.Integer" resultMap="CustomerResultMap">
+    select
+      tct.*,
+      tc.id clueId, tc.full_name, tc.phone, tc.weixin, tc.qq, tc.email, tc.age, tc.job, tc.year_income, tc.address,
+      tu1.id ownerId, tu1.name ownerName,
+      ta.id activityId, ta.name activityName,
+      tdv.id appellationId, tdv.type_value appellationName,
+      tdv2.id needLoanId, tdv2.type_value needLoanName,
+      tdv3.id intentionStateId, tdv3.type_value intentionStateName,
+      tdv4.id stateId, tdv4.type_value stateName,
+      tdv5.id sourceId, tdv5.type_value sourceName,
+      tp.id intentionProductId, tp.name intentionProductName
+    from t_customer tct left join t_clue tc on tct.clue_id = tc.id
+                        left join t_user tu1 on tc.owner_id = tu1.id
+                        left join t_activity ta on tc.activity_id = ta.id
+                        left join t_dic_value tdv on tc.appellation = tdv.id
+                        left join t_dic_value tdv2 on tc.need_loan = tdv2.id
+                        left join t_dic_value tdv3 on tc.intention_state = tdv3.id
+                        left join t_dic_value tdv4 on tc.state = tdv4.id
+                        left join t_dic_value tdv5 on tc.source = tdv5.id
+                        left join t_product tp on tct.product = tp.id
+    where tct.id = #{id,jdbcType=INTEGER}
+  </select>
+
+  <select id="selectByCount" resultType="java.lang.Integer">
+    select
+      count(0)
+    from t_customer
+  </select>
+
+  <select id="selectCustomerByMonth" resultType="com.cyk.result.NameValue">
+    SELECT DATE_FORMAT(create_time, '%Y-%m') AS name, COUNT(0) AS value
+    FROM t_customer
+    GROUP BY DATE_FORMAT(create_time, '%Y-%m')
+    ORDER BY name
+  </select>
+
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from t_customer
+    where id = #{id,jdbcType=INTEGER}
+  </delete>
+  <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TCustomer" useGeneratedKeys="true">
+    insert into t_customer (clue_id, product, description, 
+      next_contact_time, create_time, create_by, 
+      edit_time, edit_by)
+    values (#{clueId,jdbcType=INTEGER}, #{product,jdbcType=INTEGER}, #{description,jdbcType=VARCHAR}, 
+      #{nextContactTime,jdbcType=TIMESTAMP}, #{createTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=INTEGER}, 
+      #{editTime,jdbcType=TIMESTAMP}, #{editBy,jdbcType=INTEGER})
+  </insert>
+  <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TCustomer" useGeneratedKeys="true">
+    insert into t_customer
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="clueId != null">
+        clue_id,
+      </if>
+      <if test="product != null">
+        product,
+      </if>
+      <if test="description != null">
+        description,
+      </if>
+      <if test="nextContactTime != null">
+        next_contact_time,
+      </if>
+      <if test="createTime != null">
+        create_time,
+      </if>
+      <if test="createBy != null">
+        create_by,
+      </if>
+      <if test="editTime != null">
+        edit_time,
+      </if>
+      <if test="editBy != null">
+        edit_by,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="clueId != null">
+        #{clueId,jdbcType=INTEGER},
+      </if>
+      <if test="product != null">
+        #{product,jdbcType=INTEGER},
+      </if>
+      <if test="description != null">
+        #{description,jdbcType=VARCHAR},
+      </if>
+      <if test="nextContactTime != null">
+        #{nextContactTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createTime != null">
+        #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createBy != null">
+        #{createBy,jdbcType=INTEGER},
+      </if>
+      <if test="editTime != null">
+        #{editTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="editBy != null">
+        #{editBy,jdbcType=INTEGER},
+      </if>
+    </trim>
+  </insert>
+  <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TCustomer">
+    update t_customer
+    <set>
+      <if test="clueId != null">
+        clue_id = #{clueId,jdbcType=INTEGER},
+      </if>
+      <if test="product != null">
+        product = #{product,jdbcType=INTEGER},
+      </if>
+      <if test="description != null">
+        description = #{description,jdbcType=VARCHAR},
+      </if>
+      <if test="nextContactTime != null">
+        next_contact_time = #{nextContactTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createTime != null">
+        create_time = #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createBy != null">
+        create_by = #{createBy,jdbcType=INTEGER},
+      </if>
+      <if test="editTime != null">
+        edit_time = #{editTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="editBy != null">
+        edit_by = #{editBy,jdbcType=INTEGER},
+      </if>
+    </set>
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.cyk.model.TCustomer">
+    update t_customer
+    set clue_id = #{clueId,jdbcType=INTEGER},
+      product = #{product,jdbcType=INTEGER},
+      description = #{description,jdbcType=VARCHAR},
+      next_contact_time = #{nextContactTime,jdbcType=TIMESTAMP},
+      create_time = #{createTime,jdbcType=TIMESTAMP},
+      create_by = #{createBy,jdbcType=INTEGER},
+      edit_time = #{editTime,jdbcType=TIMESTAMP},
+      edit_by = #{editBy,jdbcType=INTEGER}
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+
+
+
+  <update id="updateClueIdToNullByClueId" parameterType="java.lang.Integer">
+    update t_customer
+    set clue_id = NULL
+    where clue_id = #{clueId,jdbcType=INTEGER}
+  </update>
+</mapper>

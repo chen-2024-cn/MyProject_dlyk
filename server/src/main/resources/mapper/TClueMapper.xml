@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyk.mapper.TClueMapper">
+  <resultMap id="BaseResultMap" type="com.cyk.model.TClue">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="owner_id" jdbcType="INTEGER" property="ownerId" />
+    <result column="activity_id" jdbcType="INTEGER" property="activityId" />
+    <result column="full_name" jdbcType="VARCHAR" property="fullName" />
+    <result column="appellation" jdbcType="INTEGER" property="appellation" />
+    <result column="phone" jdbcType="VARCHAR" property="phone" />
+    <result column="weixin" jdbcType="VARCHAR" property="weixin" />
+    <result column="qq" jdbcType="VARCHAR" property="qq" />
+    <result column="email" jdbcType="VARCHAR" property="email" />
+    <result column="age" jdbcType="INTEGER" property="age" />
+    <result column="job" jdbcType="VARCHAR" property="job" />
+    <result column="year_income" jdbcType="DECIMAL" property="yearIncome" />
+    <result column="address" jdbcType="VARCHAR" property="address" />
+    <result column="need_loan" jdbcType="INTEGER" property="needLoan" />
+    <result column="intention_state" jdbcType="INTEGER" property="intentionState" />
+    <result column="intention_product" jdbcType="INTEGER" property="intentionProduct" />
+    <result column="state" jdbcType="INTEGER" property="state" />
+    <result column="source" jdbcType="INTEGER" property="source" />
+    <result column="description" jdbcType="VARCHAR" property="description" />
+    <result column="next_contact_time" jdbcType="TIMESTAMP" property="nextContactTime" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="create_by" jdbcType="INTEGER" property="createBy" />
+    <result column="edit_time" jdbcType="TIMESTAMP" property="editTime" />
+    <result column="edit_by" jdbcType="INTEGER" property="editBy" />
+  </resultMap>
+
+  <resultMap id="ClueResultMap" type="com.cyk.model.TClue">
+    <id column="id" jdbcType="INTEGER" property="id" />
+    <result column="owner_id" jdbcType="INTEGER" property="ownerId" />
+    <result column="activity_id" jdbcType="INTEGER" property="activityId" />
+    <result column="full_name" jdbcType="VARCHAR" property="fullName" />
+    <result column="appellation" jdbcType="INTEGER" property="appellation" />
+    <result column="phone" jdbcType="VARCHAR" property="phone" />
+    <result column="weixin" jdbcType="VARCHAR" property="weixin" />
+    <result column="qq" jdbcType="VARCHAR" property="qq" />
+    <result column="email" jdbcType="VARCHAR" property="email" />
+    <result column="age" jdbcType="INTEGER" property="age" />
+    <result column="job" jdbcType="VARCHAR" property="job" />
+    <result column="year_income" jdbcType="DECIMAL" property="yearIncome" />
+    <result column="address" jdbcType="VARCHAR" property="address" />
+    <result column="need_loan" jdbcType="INTEGER" property="needLoan" />
+    <result column="intention_state" jdbcType="INTEGER" property="intentionState" />
+    <result column="intention_product" jdbcType="INTEGER" property="intentionProduct" />
+    <result column="state" jdbcType="INTEGER" property="state" />
+    <result column="source" jdbcType="INTEGER" property="source" />
+    <result column="description" jdbcType="VARCHAR" property="description" />
+    <result column="next_contact_time" jdbcType="TIMESTAMP" property="nextContactTime" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="create_by" jdbcType="INTEGER" property="createBy" />
+    <result column="edit_time" jdbcType="TIMESTAMP" property="editTime" />
+    <result column="edit_by" jdbcType="INTEGER" property="editBy" />
+    <!--一对一关联查询的映射-->
+    <association property="ownerDO" javaType="com.cyk.model.TUser">
+      <id column="ownerId" jdbcType="INTEGER" property="id" />
+      <result column="ownerName" jdbcType="VARCHAR" property="name" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="activityDO" javaType="com.cyk.model.TActivity">
+      <id column="activityId" jdbcType="INTEGER" property="id" />
+      <result column="activityName" jdbcType="VARCHAR" property="name" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="appellationDO" javaType="com.cyk.model.TDicValue">
+      <id column="appellationId" jdbcType="INTEGER" property="id" />
+      <result column="appellationName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="needLoanDO" javaType="com.cyk.model.TDicValue">
+      <id column="needLoanId" jdbcType="INTEGER" property="id" />
+      <result column="needLoanName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="intentionStateDO" javaType="com.cyk.model.TDicValue">
+      <id column="intentionStateId" jdbcType="INTEGER" property="id" />
+      <result column="intentionStateName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="intentionProductDO" javaType="com.cyk.model.TProduct">
+      <id column="intentionProductId" jdbcType="INTEGER" property="id" />
+      <result column="intentionProductName" jdbcType="VARCHAR" property="name" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="stateDO" javaType="com.cyk.model.TDicValue">
+      <id column="stateId" jdbcType="INTEGER" property="id" />
+      <result column="stateName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+    <!--一对一关联查询的映射-->
+    <association property="sourceDO" javaType="com.cyk.model.TDicValue">
+      <id column="sourceId" jdbcType="INTEGER" property="id" />
+      <result column="sourceName" jdbcType="VARCHAR" property="typeValue" />
+    </association>
+  </resultMap>
+  <sql id="Base_Column_List">
+    id, owner_id, activity_id, full_name, appellation, phone, weixin, qq, email, age, 
+    job, year_income, address, need_loan, intention_state, intention_product, `state`, 
+    `source`, description, next_contact_time, create_time, create_by, edit_time, edit_by
+  </sql>
+
+  <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+    select 
+    <include refid="Base_Column_List" />
+    from t_clue
+    where id = #{id,jdbcType=INTEGER}
+  </select>
+
+  <select id="selectClueByPage" parameterType="java.lang.Integer" resultMap="ClueResultMap">
+    select
+        tc.*,
+        tu.id ownerId, tu.name ownerName,
+        ta.id activityId, ta.name activityName,
+        tdv.id appellationId, tdv.type_value appellationName,
+        tdv2.id needLoanId, tdv2.type_value needLoanName,
+        tdv3.id intentionStateId, tdv3.type_value intentionStateName,
+        tp.id intentionProductId, tp.name intentionProductName,
+        tdv4.id stateId, tdv4.type_value stateName,
+        tdv5.id sourceId, tdv5.type_value sourceName
+    from t_clue tc left join t_user tu on tc.owner_id = tu.id
+                    left join t_activity ta on tc.activity_id = ta.id
+                    left join t_dic_value tdv on tc.appellation = tdv.id
+                    left join t_dic_value tdv2 on tc.need_loan = tdv2.id
+                    left join t_dic_value tdv3 on tc.intention_state = tdv3.id
+                    left join t_product tp on tc.intention_product = tp.id
+                   left join t_dic_value tdv4 on tc.state = tdv4.id
+                   left join t_dic_value tdv5 on tc.source = tdv5.id
+  </select>
+  <select id="existsUserById" resultType="boolean">
+    SELECT EXISTS(SELECT 1 FROM t_user WHERE id = #{userId})
+  </select>
+
+    <select id="selectByPhone" resultType="java.lang.Integer">
+        select count(0) from t_clue
+                        where phone = #{phone}
+    </select>
+
+  <select id="selectById" resultType="com.cyk.model.TClue" resultMap="ClueResultMap">
+    select
+      tc.*,
+      tu.id ownerId, tu.name ownerName,
+      ta.id activityId, ta.name activityName,
+      tdv.id appellationId, tdv.type_value appellationName,
+      tdv2.id needLoanId, tdv2.type_value needLoanName,
+      tdv3.id intentionStateId, tdv3.type_value intentionStateName,
+      tp.id intentionProductId, tp.name intentionProductName,
+      tdv4.id stateId, tdv4.type_value stateName,
+      tdv5.id sourceId, tdv5.type_value sourceName
+    from t_clue tc left join t_user tu on tc.owner_id = tu.id
+                   left join t_activity ta on tc.activity_id = ta.id
+                   left join t_dic_value tdv on tc.appellation = tdv.id
+                   left join t_dic_value tdv2 on tc.need_loan = tdv2.id
+                   left join t_dic_value tdv3 on tc.intention_state = tdv3.id
+                   left join t_product tp on tc.intention_product = tp.id
+                   left join t_dic_value tdv4 on tc.state = tdv4.id
+                   left join t_dic_value tdv5 on tc.source = tdv5.id
+        where tc.id = #{id, jdbcType=INTEGER}
+  </select>
+
+  <select id="selectByCount" parameterType="java.lang.String" resultType="java.lang.Integer">
+    select
+      count(0)
+    from t_clue
+    where phone = #{phone, jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectClueByCount" resultType="java.lang.Integer">
+    select
+      count(0)
+    from t_clue
+  </select>
+
+  <select id="selectBySource" resultType="com.cyk.result.NameValue">
+    SELECT
+      count( tc.id ) value,
+      tdv.type_value name
+    FROM
+      t_clue tc
+        LEFT JOIN t_dic_value tdv ON tc.source = tdv.id
+    WHERE
+      tdv.type_value IS NOT NULL
+    GROUP BY
+      tc.source
+  </select>
+
+  <select id="selectClueByMonth" resultType="com.cyk.result.NameValue">
+    SELECT DATE_FORMAT(create_time, '%Y-%m') AS name, COUNT(0) AS value
+    FROM t_clue
+    GROUP BY DATE_FORMAT(create_time, '%Y-%m')
+    ORDER BY name
+  </select>
+
+  <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
+    delete from t_clue
+    where id = #{id,jdbcType=INTEGER}
+  </delete>
+  <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TClue" useGeneratedKeys="true">
+    insert into t_clue (owner_id, activity_id, full_name, 
+      appellation, phone, weixin, 
+      qq, email, age, job, 
+      year_income, address, need_loan, 
+      intention_state, intention_product, `state`, 
+      `source`, description, next_contact_time, 
+      create_time, create_by, edit_time, 
+      edit_by)
+    values (#{ownerId,jdbcType=INTEGER}, #{activityId,jdbcType=INTEGER}, #{fullName,jdbcType=VARCHAR}, 
+      #{appellation,jdbcType=INTEGER}, #{phone,jdbcType=VARCHAR}, #{weixin,jdbcType=VARCHAR}, 
+      #{qq,jdbcType=VARCHAR}, #{email,jdbcType=VARCHAR}, #{age,jdbcType=INTEGER}, #{job,jdbcType=VARCHAR}, 
+      #{yearIncome,jdbcType=DECIMAL}, #{address,jdbcType=VARCHAR}, #{needLoan,jdbcType=INTEGER}, 
+      #{intentionState,jdbcType=INTEGER}, #{intentionProduct,jdbcType=INTEGER}, #{state,jdbcType=INTEGER}, 
+      #{source,jdbcType=INTEGER}, #{description,jdbcType=VARCHAR}, #{nextContactTime,jdbcType=TIMESTAMP}, 
+      #{createTime,jdbcType=TIMESTAMP}, #{createBy,jdbcType=INTEGER}, #{editTime,jdbcType=TIMESTAMP}, 
+      #{editBy,jdbcType=INTEGER})
+  </insert>
+  <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TClue" useGeneratedKeys="true">
+    insert into t_clue
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="ownerId != null">
+        owner_id,
+      </if>
+      <if test="activityId != null">
+        activity_id,
+      </if>
+      <if test="fullName != null">
+        full_name,
+      </if>
+      <if test="appellation != null">
+        appellation,
+      </if>
+      <if test="phone != null">
+        phone,
+      </if>
+      <if test="weixin != null">
+        weixin,
+      </if>
+      <if test="qq != null">
+        qq,
+      </if>
+      <if test="email != null">
+        email,
+      </if>
+      <if test="age != null">
+        age,
+      </if>
+      <if test="job != null">
+        job,
+      </if>
+      <if test="yearIncome != null">
+        year_income,
+      </if>
+      <if test="address != null">
+        address,
+      </if>
+      <if test="needLoan != null">
+        need_loan,
+      </if>
+      <if test="intentionState != null">
+        intention_state,
+      </if>
+      <if test="intentionProduct != null">
+        intention_product,
+      </if>
+      <if test="state != null">
+        `state`,
+      </if>
+      <if test="source != null">
+        `source`,
+      </if>
+      <if test="description != null">
+        description,
+      </if>
+      <if test="nextContactTime != null">
+        next_contact_time,
+      </if>
+      <if test="createTime != null">
+        create_time,
+      </if>
+      <if test="createBy != null">
+        create_by,
+      </if>
+      <if test="editTime != null">
+        edit_time,
+      </if>
+      <if test="editBy != null">
+        edit_by,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="ownerId != null">
+        #{ownerId,jdbcType=INTEGER},
+      </if>
+      <if test="activityId != null">
+        #{activityId,jdbcType=INTEGER},
+      </if>
+      <if test="fullName != null">
+        #{fullName,jdbcType=VARCHAR},
+      </if>
+      <if test="appellation != null">
+        #{appellation,jdbcType=INTEGER},
+      </if>
+      <if test="phone != null">
+        #{phone,jdbcType=VARCHAR},
+      </if>
+      <if test="weixin != null">
+        #{weixin,jdbcType=VARCHAR},
+      </if>
+      <if test="qq != null">
+        #{qq,jdbcType=VARCHAR},
+      </if>
+      <if test="email != null">
+        #{email,jdbcType=VARCHAR},
+      </if>
+      <if test="age != null">
+        #{age,jdbcType=INTEGER},
+      </if>
+      <if test="job != null">
+        #{job,jdbcType=VARCHAR},
+      </if>
+      <if test="yearIncome != null">
+        #{yearIncome,jdbcType=DECIMAL},
+      </if>
+      <if test="address != null">
+        #{address,jdbcType=VARCHAR},
+      </if>
+      <if test="needLoan != null">
+        #{needLoan,jdbcType=INTEGER},
+      </if>
+      <if test="intentionState != null">
+        #{intentionState,jdbcType=INTEGER},
+      </if>
+      <if test="intentionProduct != null">
+        #{intentionProduct,jdbcType=INTEGER},
+      </if>
+      <if test="state != null">
+        #{state,jdbcType=INTEGER},
+      </if>
+      <if test="source != null">
+        #{source,jdbcType=INTEGER},
+      </if>
+      <if test="description != null">
+        #{description,jdbcType=VARCHAR},
+      </if>
+      <if test="nextContactTime != null">
+        #{nextContactTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createTime != null">
+        #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createBy != null">
+        #{createBy,jdbcType=INTEGER},
+      </if>
+      <if test="editTime != null">
+        #{editTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="editBy != null">
+        #{editBy,jdbcType=INTEGER},
+      </if>
+    </trim>
+  </insert>
+
+  <insert id="saveClue" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TClue" useGeneratedKeys="true">
+    insert into t_clue (owner_id, activity_id, full_name,
+                        appellation, phone, weixin,
+                        qq, email, age, job,
+                        year_income, address, need_loan,
+                        intention_state, intention_product, `state`,
+                        `source`, description, next_contact_time,
+                        create_time, create_by, edit_time,
+                        edit_by)
+    values
+        <foreach collection="cachedDataList" item="tClue" separator=",">
+          (#{tClue.ownerId,jdbcType=INTEGER}, #{tClue.activityId,jdbcType=INTEGER}, #{tClue.fullName,jdbcType=VARCHAR},
+          #{tClue.appellation,jdbcType=INTEGER}, #{tClue.phone,jdbcType=VARCHAR}, #{tClue.weixin,jdbcType=VARCHAR},
+          #{tClue.qq,jdbcType=VARCHAR}, #{tClue.email,jdbcType=VARCHAR}, #{tClue.age,jdbcType=INTEGER}, #{tClue.job,jdbcType=VARCHAR},
+          #{tClue.yearIncome,jdbcType=DECIMAL}, #{tClue.address,jdbcType=VARCHAR}, #{tClue.needLoan,jdbcType=INTEGER},
+          #{tClue.intentionState,jdbcType=INTEGER}, #{tClue.intentionProduct,jdbcType=INTEGER}, #{tClue.state,jdbcType=INTEGER},
+          #{tClue.source,jdbcType=INTEGER}, #{tClue.description,jdbcType=VARCHAR}, #{tClue.nextContactTime,jdbcType=TIMESTAMP},
+          #{tClue.createTime,jdbcType=TIMESTAMP}, #{tClue.createBy,jdbcType=INTEGER}, #{tClue.editTime,jdbcType=TIMESTAMP},
+          #{tClue.editBy,jdbcType=INTEGER})
+        </foreach>
+  </insert>
+
+  <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TClue">
+    update t_clue
+    <set>
+      <if test="ownerId != null">
+        owner_id = #{ownerId,jdbcType=INTEGER},
+      </if>
+      <if test="activityId != null">
+        activity_id = #{activityId,jdbcType=INTEGER},
+      </if>
+      <if test="fullName != null">
+        full_name = #{fullName,jdbcType=VARCHAR},
+      </if>
+      <if test="appellation != null">
+        appellation = #{appellation,jdbcType=INTEGER},
+      </if>
+      <if test="phone != null">
+        phone = #{phone,jdbcType=VARCHAR},
+      </if>
+      <if test="weixin != null">
+        weixin = #{weixin,jdbcType=VARCHAR},
+      </if>
+      <if test="qq != null">
+        qq = #{qq,jdbcType=VARCHAR},
+      </if>
+      <if test="email != null">
+        email = #{email,jdbcType=VARCHAR},
+      </if>
+      <if test="age != null">
+        age = #{age,jdbcType=INTEGER},
+      </if>
+      <if test="job != null">
+        job = #{job,jdbcType=VARCHAR},
+      </if>
+      <if test="yearIncome != null">
+        year_income = #{yearIncome,jdbcType=DECIMAL},
+      </if>
+      <if test="address != null">
+        address = #{address,jdbcType=VARCHAR},
+      </if>
+      <if test="needLoan != null">
+        need_loan = #{needLoan,jdbcType=INTEGER},
+      </if>
+      <if test="intentionState != null">
+        intention_state = #{intentionState,jdbcType=INTEGER},
+      </if>
+      <if test="intentionProduct != null">
+        intention_product = #{intentionProduct,jdbcType=INTEGER},
+      </if>
+      <if test="state != null">
+        `state` = #{state,jdbcType=INTEGER},
+      </if>
+      <if test="source != null">
+        `source` = #{source,jdbcType=INTEGER},
+      </if>
+      <if test="description != null">
+        description = #{description,jdbcType=VARCHAR},
+      </if>
+      <if test="nextContactTime != null">
+        next_contact_time = #{nextContactTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createTime != null">
+        create_time = #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createBy != null">
+        create_by = #{createBy,jdbcType=INTEGER},
+      </if>
+      <if test="editTime != null">
+        edit_time = #{editTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="editBy != null">
+        edit_by = #{editBy,jdbcType=INTEGER},
+      </if>
+    </set>
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+  <update id="updateByPrimaryKey" parameterType="com.cyk.model.TClue">
+    update t_clue
+    set owner_id = #{ownerId,jdbcType=INTEGER},
+      activity_id = #{activityId,jdbcType=INTEGER},
+      full_name = #{fullName,jdbcType=VARCHAR},
+      appellation = #{appellation,jdbcType=INTEGER},
+      phone = #{phone,jdbcType=VARCHAR},
+      weixin = #{weixin,jdbcType=VARCHAR},
+      qq = #{qq,jdbcType=VARCHAR},
+      email = #{email,jdbcType=VARCHAR},
+      age = #{age,jdbcType=INTEGER},
+      job = #{job,jdbcType=VARCHAR},
+      year_income = #{yearIncome,jdbcType=DECIMAL},
+      address = #{address,jdbcType=VARCHAR},
+      need_loan = #{needLoan,jdbcType=INTEGER},
+      intention_state = #{intentionState,jdbcType=INTEGER},
+      intention_product = #{intentionProduct,jdbcType=INTEGER},
+      `state` = #{state,jdbcType=INTEGER},
+      `source` = #{source,jdbcType=INTEGER},
+      description = #{description,jdbcType=VARCHAR},
+      next_contact_time = #{nextContactTime,jdbcType=TIMESTAMP},
+      create_time = #{createTime,jdbcType=TIMESTAMP},
+      create_by = #{createBy,jdbcType=INTEGER},
+      edit_time = #{editTime,jdbcType=TIMESTAMP},
+      edit_by = #{editBy,jdbcType=INTEGER}
+    where id = #{id,jdbcType=INTEGER}
+  </update>
+</mapper>
