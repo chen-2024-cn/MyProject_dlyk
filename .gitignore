@@ -1,9 +1,11 @@
 # IDE
 .idea/
+.vscode/
 *.iml
 
 # Claude 内部文件
 .claude/
+.mcp.json
 
 # 前端
 front/node_modules/
