@@ -1,0 +1,18 @@
+# IDE
+.idea/
+*.iml
+
+# Claude 内部文件
+.claude/
+
+# 前端
+front/node_modules/
+front/dist/
+
+# 后端
+server/target/
+server/.mvn/wrapper/maven-wrapper.jar
+
+# 系统
+.DS_Store
+Thumbs.db
