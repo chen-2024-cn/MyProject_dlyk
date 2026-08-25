@@ -2,6 +2,7 @@ package com.cyk.mapper;
 
 import com.cyk.commons.DataScope;
 import com.cyk.model.TUser;
+import com.cyk.model.TUserRole;
 import com.cyk.query.BaseQuery;
 
 import java.util.List;
@@ -29,4 +30,6 @@ public interface TUserMapper {
     int deleteByIds(List list);
 
     List<TUser> selectByOwner();
+
+    int insertRole(TUserRole userRole);
 }

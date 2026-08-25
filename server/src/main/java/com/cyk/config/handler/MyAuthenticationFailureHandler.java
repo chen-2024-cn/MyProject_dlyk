@@ -1,5 +1,6 @@
 package com.cyk.config.handler;
 
+import com.cyk.constants.Constants;
 import com.cyk.result.R;
 import com.cyk.service.RedisService;
 import com.cyk.util.JSONUtils;
@@ -41,8 +42,8 @@ public class MyAuthenticationFailureHandler implements AuthenticationFailureHand
         String outputMessage = exception.getMessage();
 
         if (username != null && !username.trim().isEmpty()) {
-            String failKey = "dlyk:login:fail:" + username;
-            String lockKey = "dlyk:login:lock:" + username;
+            String failKey = Constants.REDIS_LOGIN_FAIL_KEY + username;
+            String lockKey = Constants.REDIS_LOGIN_LOCK_KEY + username;
 
             // 1. 如果账户已经被锁定，或者抛出的是 LockedException，则提示锁定
             if (exception instanceof LockedException || redisService.hasKey(lockKey)) {
@@ -52,13 +53,12 @@ public class MyAuthenticationFailureHandler implements AuthenticationFailureHand
                 Long currentFailCount = redisService.incr(failKey); // 增加失败次数
 
                 if (currentFailCount == 1) {
-                    redisService.expire(failKey, 10L, TimeUnit.MINUTES); // 10分钟后失效
+                    redisService.expire(failKey, Constants.LOGIN_FAIL_EXPIRE_MINUTES, TimeUnit.MINUTES); // 计数器10分钟后失效
                 }
 
                 if (currentFailCount >= MAX_LOGIN_FAIL_COUNT) {
-                    // 锁定账号在 Redis 30分钟
-                    redisService.setValue(lockKey, "LOCKED");
-                    redisService.expire(lockKey, 30L, TimeUnit.MINUTES);
+                    // 锁定账号 30分钟：改为原子写入（SET + 过期时间一条命令完成），消除原 setValue+expire 两步非原子风险
+                    redisService.setValue(lockKey, "LOCKED", Constants.LOGIN_LOCK_EXPIRE_MINUTES, TimeUnit.MINUTES);
                     redisService.removeValue(failKey); // 锁定后清空失败次数计数器开始新一轮
                     outputMessage = "密码输入错误已达 " + MAX_LOGIN_FAIL_COUNT + " 次，账户已被锁定30分钟！";
                 } else {

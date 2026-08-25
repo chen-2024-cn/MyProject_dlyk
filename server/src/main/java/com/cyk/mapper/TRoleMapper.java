@@ -21,4 +21,9 @@ public interface TRoleMapper {
     List<TRole> selectByUserId(Integer userId);
 
     List<String> selectRoleNamesByIds(@Param("roleIds") List<Integer> roleIds);
+
+    /**
+     * 查询全部角色（用于用户管理页面分配角色时的下拉选项）
+     */
+    List<TRole> selectRoleList();
 }

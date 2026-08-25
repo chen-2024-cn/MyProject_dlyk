@@ -53,4 +53,9 @@ public class UserQuery extends BaseQuery{
      * 账号是否启用，0禁用 1启用
      */
     private Integer accountEnabled;
+
+    /**
+     * 用户拥有的角色ID列表（新建/编辑用户时由管理员分配）
+     */
+    private java.util.List<Integer> roleIds;
 }

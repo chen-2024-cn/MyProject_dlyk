@@ -24,6 +24,23 @@
     delete from t_user_role
     where id = #{id,jdbcType=INTEGER}
   </delete>
+  <delete id="deleteByUserId" parameterType="java.lang.Integer">
+    delete from t_user_role
+    where user_id = #{userId,jdbcType=INTEGER}
+  </delete>
+  <delete id="deleteByUserIds">
+    delete from t_user_role
+    where user_id in
+    <foreach collection="list" item="userId" open="(" close=")" separator=",">
+      #{userId,jdbcType=INTEGER}
+    </foreach>
+  </delete>
+  <insert id="insertBatch">
+    insert into t_user_role (user_id, role_id) values
+    <foreach collection="list" item="item" separator=",">
+      (#{item.userId,jdbcType=INTEGER}, #{item.roleId,jdbcType=INTEGER})
+    </foreach>
+  </insert>
   <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TUserRole" useGeneratedKeys="true">
     insert into t_user_role (user_id, role_id)
     values (#{userId,jdbcType=INTEGER}, #{roleId,jdbcType=INTEGER})

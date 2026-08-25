@@ -103,6 +103,11 @@ public class TUser implements UserDetails,Serializable {
     List<String> roleList;
 
     /**
+     * 角色ID列表（用户管理页编辑回显用；登录构建用户时为null，不参与JWT负载）
+     */
+    List<Integer> roleIds;
+
+    /**
      * 权限标识符List
      */
     List<String>  permissionList;

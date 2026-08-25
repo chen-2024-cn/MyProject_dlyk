@@ -37,8 +37,14 @@ public class TokenVerifyFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        if (request.getRequestURI().equals(Constants.LOGIN_URI)) { //如果是登录请求，此时还没有生成jwt，那不需要对登录请求进行jwt验证
-            //验证jwt通过了 ，让Filter链继续执行，也就是继续执行下一个Filter
+        String requestURI = request.getRequestURI();
+        
+        // 核心修复：放行公开的匿名请求（登录、注册、找回密码邮件验证码、修改密码提交）
+        if (requestURI.equals(Constants.LOGIN_URI) 
+                || requestURI.equals("/api/register")
+                || requestURI.equals("/api/password/reset/code")
+                || requestURI.equals("/api/password/reset")) { 
+            // 验证通过，不做JWT校验，让Filter链继续执行
             filterChain.doFilter(request, response);
 
         } else {

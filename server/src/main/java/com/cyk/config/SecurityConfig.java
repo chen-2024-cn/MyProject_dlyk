@@ -59,7 +59,11 @@ public class SecurityConfig {
                             .failureHandler(myAuthenticationFailureHandler);
                 })
                 .authorizeHttpRequests((authorize) -> {
-                    authorize.requestMatchers("/api/login").permitAll()
+                    authorize.requestMatchers("/api/login",
+                                    "/api/register",
+                                    "/api/password/reset/code",
+                                    "/api/password/reset")
+                            .permitAll()
                             .anyRequest()
                             .authenticated();//其他任何请求需要登录后才能访问
 

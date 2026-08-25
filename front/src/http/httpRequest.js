@@ -28,6 +28,16 @@ export function doPost(url, data) {
     });
 }
 
+// 专门用于发送标准的 JSON POST 请求（用于匹配后端的 @RequestBody 接收）
+export function doPostJson(url, data) {
+    return axios({
+        method: "post",
+        url: url,
+        data: data, // 纯 JavaScript 对象，Axios 会内部将其转为 JSON 串，自动设置 Content-Type: application/json
+        dataType: "json"
+    });
+}
+
 // 专门用于文件上传的方法
 export function doUploadFile(url, formData) {
     return axios({

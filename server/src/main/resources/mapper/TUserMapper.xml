@@ -212,6 +212,11 @@
             </if>
         </trim>
     </insert>
+
+    <insert id="insertRole" parameterType="com.cyk.model.TUserRole">
+        insert into t_user_role (user_id, role_id) values (#{userId}, #{roleId})
+    </insert>
+
     <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TUser">
         update t_user
         <set>

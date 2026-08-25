@@ -34,6 +34,13 @@
         </foreach>
     </select>
 
+    <!--查询全部角色（用户管理页面分配角色下拉用）-->
+    <select id="selectRoleList" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from t_role
+    </select>
+
     <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
         delete
         from t_role

@@ -137,6 +137,24 @@
               :inactive-value="0"
           />
         </el-form-item>
+
+        <!-- 角色分配（多选） -->
+        <el-form-item label="角色" prop="roleIds">
+          <el-select
+              v-model="userForm.roleIds"
+              multiple
+              clearable
+              placeholder="请为该用户分配角色"
+              style="width: 100%"
+          >
+            <el-option
+                v-for="role in roleOptions"
+                :key="role.id"
+                :label="role.roleName"
+                :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
       </el-form>
     </div>
     <template #footer>
@@ -219,8 +237,10 @@ const userForm = ref({
   accountNoExpired: 1,
   credentialsNoExpired: 1,
   accountNoLocked: 1,
-  accountEnabled: 1
+  accountEnabled: 1,
+  roleIds: []                // 用户角色ID列表
 });
+const roleOptions = ref([]);  // 角色下拉选项
 const search = ref('');
 const userFormRef = ref(null);
 const reload = inject("reload");
@@ -270,7 +290,20 @@ const userFormRules = computed(() => {
 
 onMounted(() => {
   getData(1);
+  loadRoleOptions();
 });
+
+// 加载角色下拉选项
+const loadRoleOptions = async () => {
+  try {
+    const res = await doGet("api/roles", {});
+    if (res.data.code === 200) {
+      roleOptions.value = res.data.data || [];
+    }
+  } catch (e) {
+    console.error("加载角色列表失败", e);
+  }
+};
 
 // 过滤后的用户列表（根据搜索关键词）
 const filteredUserList = computed(() => {
@@ -360,7 +393,8 @@ const openAddUserDialog = () => {
         accountNoExpired: 1,
         credentialsNoExpired: 1,
         accountNoLocked: 1,
-        accountEnabled: 1
+        accountEnabled: 1,
+        roleIds: []
       };
     }
   });
@@ -381,6 +415,7 @@ const loadUser = async (id) => {
   const res = await doGet('api/user/' + id, {});
   if (res.data.code === 200) {
     userForm.value = res.data.data;
+    if (!userForm.value.roleIds) userForm.value.roleIds = [];  // 兼容后端未返回角色时的回显
     userForm.value.loginPwd = '';   // 清空密码字段，避免显示占位符
     // 清除表单校验状态
     nextTick(() => {

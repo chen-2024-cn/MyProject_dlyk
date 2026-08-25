@@ -34,25 +34,17 @@ public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHand
         String userJSON = JSONUtils.toJSON(tUser);
         //1、生成jwt
         String jwt = JWTUtils.createJWT(userJSON);
-        //2、写入Redis
+        //2、写入Redis，根据“记住我”决定过期时间，并原子写入（SET + EX 一条命令完成）
         String key = Constants.REDIS_JWT_KEY + tUser.getId();
-        redisService.setValue(key, jwt);
+        String rememberMe = request.getParameter("rememberMe");
+        long ttl = Boolean.parseBoolean(rememberMe) ? Constants.EXPIRE_TIME : Constants.DEFAULT_EXPIRE_TIME;
+        redisService.setValue(key, jwt, ttl, TimeUnit.SECONDS);
 
         System.out.println("redis的key====="+ key + "=====设置的jwt为" + jwt);
 
-        //3、设置jwt的过期时间
-        String rememberMe = request.getParameter("rememberMe");
-        if (Boolean.parseBoolean(rememberMe)) {
-            //勾选了记住我
-            redisService.expire(key, Constants.EXPIRE_TIME, TimeUnit.SECONDS);
-        } else {
-            //没有勾选
-            redisService.expire(key, Constants.DEFAULT_EXPIRE_TIME, TimeUnit.SECONDS);
-        }
-
-        // 4、清除登录失败和锁定缓存
-        String failKey = "dlyk:login:fail:" + tUser.getLoginAct();
-        String lockKey = "dlyk:login:lock:" + tUser.getLoginAct();
+        // 3、清除登录失败和锁定缓存
+        String failKey = Constants.REDIS_LOGIN_FAIL_KEY + tUser.getLoginAct();
+        String lockKey = Constants.REDIS_LOGIN_LOCK_KEY + tUser.getLoginAct();
         redisService.removeValue(failKey);
         redisService.removeValue(lockKey);
 

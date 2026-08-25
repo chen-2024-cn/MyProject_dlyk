@@ -18,6 +18,13 @@ public class RedisServiceImpl implements RedisService {
     }
 
     @Override
+    public void setValue(String key, String value, Long timeout, TimeUnit unit) {
+        // 原子写入：底层对应 Redis 的 SET key value EX timeout，一条命令完成存储+设置过期
+        // 相比先 set 再 expire 的两步写法，不存在中间宕机导致 key 永不过期的风险
+        redisTemplate.opsForValue().set(key, value, timeout, unit);
+    }
+
+    @Override
     public Object getValue(String key) {
         return redisTemplate.opsForValue().get(key);
     }
@@ -25,6 +32,11 @@ public class RedisServiceImpl implements RedisService {
     @Override
     public Boolean removeValue(String key) {
         return redisTemplate.delete(key);
+    }
+
+    @Override
+    public Boolean delete(String key) {
+        return redisTemplate.delete(key); // 调用原生的 redisTemplate.delete 实现
     }
 
     @Override
