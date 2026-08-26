@@ -234,7 +234,13 @@ public class UserServiceImpl implements UserService {
         TUser tUser = tUserMapper.selectDetailById(id);
         //回显该用户当前的角色ID列表，供编辑页角色多选框回填
         if (tUser != null) {
-            tUser.setRoleIds(tUserRoleMapper.selectRoleIdsByUserId(id));
+            List<Integer> roleIds = tUserRoleMapper.selectRoleIdsByUserId(id);
+            tUser.setRoleIds(roleIds);
+            if (roleIds == null || roleIds.isEmpty()) {
+                tUser.setRoleList(new ArrayList<>());
+            } else {
+                tUser.setRoleList(tRoleMapper.selectRoleNamesByIds(roleIds));
+            }
         }
         return tUser;
     }

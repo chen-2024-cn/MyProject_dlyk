@@ -27,11 +27,13 @@
         where tur.user_id = #{userId,jdbcType=INTEGER}
     </select>
 
-    <select id="selectRoleNamesByIds" resultType="java.lang.String">
-        select role from t_role where id in
-        <foreach collection="roleIds" item="id" open="(" separator="," close=")">
-            #{id}
-        </foreach>
+    <select id="selectRoleNamesByIds" parameterType="java.util.List" resultType="java.lang.String">
+        <if test="roleIds != null and roleIds.size() &gt; 0">
+            select role from t_role where id in
+            <foreach collection="roleIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+        </if>
     </select>
 
     <!--查询全部角色（用户管理页面分配角色下拉用）-->
