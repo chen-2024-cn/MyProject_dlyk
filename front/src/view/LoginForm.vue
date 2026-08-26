@@ -1,116 +1,137 @@
 <template>
-  <div class="login-container">
-    <!-- 装饰性浮动元素 -->
-    <div class="deco-circle deco-circle-1"></div>
-    <div class="deco-circle deco-circle-2"></div>
-    <div class="deco-circle deco-circle-3"></div>
+  <!-- 整个浏览器界面为火车车厢内壁，锁定上下滑动 -->
+  <div class="cabin-viewport" @wheel.prevent="handleWheel">
+    
+    <!-- 【前景覆盖层】：精美座名牌 (悬浮在钢板前) -->
+    <div class="seat-badge seat-badge-left">09<br/><span>A</span></div>
+    <div class="seat-badge seat-badge-right">16<br/><span>B</span></div>
 
-    <div class="login-wrapper">
-      <!-- 左侧品牌展示区 -->
-      <div class="brand-panel">
-        <div class="brand-content">
-          <div class="brand-logo">M</div>
-          <h1 class="brand-name">管理系统</h1>
-          <p class="brand-slogan">高效协作 · 数据驱动 · 智慧管理</p>
-          <div class="brand-features">
-            <div class="feature-item">
-              <el-icon><DataAnalysis/></el-icon>
-              <span>全链路客户线索管理</span>
+    <!-- 【列车钢制壁板与车窗整体沙盒】 -->
+    <div class="train-cabin-wall">
+      
+      <!-- 铬电镀拉丝车窗 3D 拟真金属物理外框 -->
+      <div class="train-window-frame">
+        
+        <!-- 车窗内部高保真裁剪蒙版 (在内部实现所有视差滚动，绝对保证不溢出车窗外，对齐完美) -->
+        <div class="train-window-inner">
+          
+          <!-- ==================== 【唯一、横贯全局的超长全景风光长卷】 ==================== -->
+          <!-- 采用 140% 宽度，起始 left 设为 0。滑轮滚到底时，最大仅往左平行视差平移自身 25% 的距离！也就是物理位移 35% 窗宽。大图在最右端还额外保留了 5% 的安全余量空间，彻底根治一切背景露黑漏洞！ -->
+          <div class="window-landscape-wide-panorama" :style="{ transform: 'translateX(' + (-scrollProgress * 25) + '%) scale(1.05)' }"></div>
+          
+          <div class="scrolling-shadows"></div>
+          <div class="window-atmosphere-overlay"></div>
+
+          <!-- ====== 【第一画区：春之森林飞驰意境】 (绝对定位，随着滑动在 X 轴向左退场并淡出) ====== -->
+          <div class="track-block block-train-view" :style="{ opacity: 1 - scrollProgress * 1.5, transform: 'translateX(' + (-scrollProgress * 100) + '%)' }">
+            
+            <!-- 治愈文案 -->
+            <div class="window-caption">
+              <h2 class="caption-main">世界很大</h2>
+              <h1 class="caption-sub">我们一起去看看</h1>
+              <p class="caption-desc">JOURNEY · CRM SYSTEM</p>
             </div>
-            <div class="feature-item">
-              <el-icon><TrendCharts/></el-icon>
-              <span>可视化商机统计分析</span>
-            </div>
-            <div class="feature-item">
-              <el-icon><Lock/></el-icon>
-              <span>企业级权限安全体系</span>
+
+            <!-- 滑动滚轮指示器 -->
+            <div class="scroll-tip-indicator" @click="autoGlideToLogin" style="cursor: pointer; pointer-events: auto;">
+              <span class="tip-text">点击或滑动滚轮，开启你的旅程</span>
+              <div class="mouse-icon">
+                <div class="mouse-wheel"></div>
+              </div>
+              <el-icon class="arrow-down-bounce"><ArrowDown /></el-icon>
             </div>
           </div>
-        </div>
-      </div>
 
-      <!-- 右侧表单区 -->
-      <el-card class="login-card" shadow="never" :body-style="{ padding: '36px' }">
-      <!-- Logo 与标题 -->
-      <div class="login-header">
-        <el-avatar :size="56" :icon="UserFilled" class="login-avatar"/>
-        <h2 class="login-title">欢迎回来</h2>
-        <p class="login-subtitle">请登录您的账号继续</p>
-      </div>
+          <!-- ====== 【第二画区：列车停靠终点·静谧居中登录】 (绝对定位，从右侧滑动入场，在完成时正好 0 偏移精确居中于车窗物理正中央) ====== -->
+          <div class="track-block block-login-view" :style="{ transform: 'translateX(' + ((1 - scrollProgress) * 100) + '%)' }">
+            
+            <!-- 登录表单定位包装器 (随着滚动在 Y 轴伴随 45px 的落差淡入，确保与大轨差速契合，极其顺畅) -->
+            <div class="journey-login-wrapper" :style="{ transform: 'translateY(' + (-45 * (1 - loginReveal)) + 'px)', opacity: loginReveal }">
+              
+              <!-- 墨绿磨砂拉窗式登录表单卡 (调高遮光率至 96.5%，降低过高透明度带来的背景干扰，卡片超矮化紧凑设计保证所有分辨率一屏100%全显露) -->
+              <div class="journey-login-card">
+                
+                <!-- 精致微顶 Ribbon 小条替代高占用 Avatar 和大标题 (直接缩减 110px 物理高度，确保注册一屏可见) -->
+                <div class="journey-header-thin">
+                  <div class="ribbon-brand">
+                    <span class="ribbon-logo">🍃</span>
+                    <span class="ribbon-text">专员登录舱 · 欢迎回到 CRM 智慧管理端</span>
+                  </div>
+                </div>
 
-      <el-form
-          ref="loginFormRef"
-          :model="loginForm"
-          :rules="loginRules"
-          label-width="0"
-          status-icon
-          class="login-form"
-      >
-        <!-- 账号输入框：图标在左侧 -->
-        <el-form-item prop="account">
-          <el-input
-              v-model="loginForm.loginAct"
-              placeholder="请输入账号"
-              clearable
-              size="large"
-          >
-            <template #prefix>
-              <el-icon>
-                <User/>
-              </el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
+                <!-- 登录表单本体 -->
+                <el-form
+                  ref="loginFormRef"
+                  :model="loginForm"
+                  :rules="loginRules"
+                  label-width="0"
+                  status-icon
+                  class="journey-form"
+                >
+                  <!-- 账号输入 -->
+                  <el-form-item prop="account">
+                    <el-input
+                      v-model="loginForm.loginAct"
+                      placeholder="用户名/邮箱"
+                      clearable
+                    >
+                      <template #prefix>
+                        <el-icon><User /></el-icon>
+                      </template>
+                    </el-input>
+                  </el-form-item>
 
-        <!-- 密码输入框 -->
-        <el-form-item prop="password">
-          <el-input
-              v-model="loginForm.loginPwd"
-              type="password"
-              placeholder="请输入密码"
-              clearable
-              show-password
-              size="large"
-              @keyup.enter="handleLogin"
-          >
-            <template #prefix>
-              <el-icon>
-                <Lock/>
-              </el-icon>
-            </template>
-          </el-input>
-        </el-form-item>
+                  <!-- 密码输入 -->
+                  <el-form-item prop="password">
+                    <el-input
+                      v-model="loginForm.loginPwd"
+                      type="password"
+                      placeholder="密码"
+                      clearable
+                      show-password
+                      @keyup.enter="handleLogin"
+                    >
+                      <template #prefix>
+                        <el-icon><Lock /></el-icon>
+                      </template>
+                    </el-input>
+                  </el-form-item>
 
-        <!-- 辅助功能行：记住密码 + 忘记密码 -->
-        <div class="form-extra">
-          <el-checkbox v-model="rememberMe">记住密码</el-checkbox>
-          <el-link type="primary" :underline="false" @click="openResetDialog">忘记密码？</el-link>
-        </div>
+                  <!-- 辅助逻辑 -->
+                  <div class="journey-extra">
+                    <el-checkbox v-model="rememberMe">记住我</el-checkbox>
+                    <el-link class="forgot-link" :underline="false" @click="openResetDialog">忘记密码？</el-link>
+                  </div>
 
-        <!-- 登录按钮 -->
-        <el-form-item>
-          <el-button
-              type="primary"
-              :loading="loading"
-              size="large"
-              class="login-button"
-              @click="handleLogin"
-          >
-            <el-icon v-if="!loading" style="margin-right: 6px"><Promotion/></el-icon>
-            登 录
-          </el-button>
-        </el-form-item>
+                  <!-- 登录提交 -->
+                  <el-form-item>
+                    <el-button
+                      type="primary"
+                      :loading="loading"
+                      class="journey-button"
+                      @click="handleLogin"
+                    >
+                      登 录
+                    </el-button>
+                  </el-form-item>
 
-        <!-- 注册引导 -->
-        <div class="register-tip">
-          还没有账号？
-          <el-link type="primary" :underline="false" @click="openRegisterDialog">立即注册</el-link>
-        </div>
-      </el-form>
-    </el-card> <!-- 结束登录卡片，将弹窗节点彻底剥离出卡片范围，防止受到 hover:translate 引起的重绘抖动 -->
-    </div> <!-- 结束 login-wrapper 双栏布局 -->
+                  <!-- 注册引导 & 微信合并底栏 (高度极其干炼省位，100% 漏出在用户的视平线上！) -->
+                  <div class="journey-register-tip">
+                    还没有账号？ <span class="register-clickable" @click="openRegisterDialog">立即注册</span>
+                    <span class="wechat-quick-link" @click="openWechatTip"> | 微信快捷</span>
+                  </div>
+                </el-form>
 
-    <!-- [新加的弹层 1]：新用户注册弹窗Dialog (追加 :append-to-body="true" 挂载到 body 下) -->
+              </div>
+            </div> <!-- journey-login-wrapper -->
+          </div>
+
+        </div> <!-- train-window-inner -->
+      </div> <!-- train-window-frame -->
+      
+    </div> <!-- train-cabin-wall -->
+
+    <!-- [全局注册弹窗] -->
     <el-dialog v-model="registerVisible" title="新专员注册" width="480px" :close-on-click-modal="false" :destroy-on-close="true" :append-to-body="true" align-center>
       <el-form :model="registerForm" :rules="registerRules" ref="registerFormRef" label-width="90px">
         <el-form-item label="登录账号" prop="loginAct">
@@ -140,7 +161,7 @@
       </template>
     </el-dialog>
 
-    <!-- [新加的弹层 2]：忘记密码重置弹窗Dialog (同理，挂载到 body 下) -->
+    <!-- [全局密码重置弹窗] -->
     <el-dialog v-model="resetVisible" title="找回账户密码" width="480px" :close-on-click-modal="false" :destroy-on-close="true" :append-to-body="true" align-center>
       <el-form :model="resetForm" :rules="resetRules" ref="resetFormRef" label-width="90px">
         <el-form-item label="用户名" prop="loginAct">
@@ -171,15 +192,61 @@
         </span>
       </template>
     </el-dialog>
+
   </div>
 </template>
 
 <script setup>
-import {ref, reactive, onMounted} from 'vue'
+import {ref, reactive, onMounted, computed} from 'vue'
 import {ElMessage} from 'element-plus'
-import {User, Lock, UserFilled, Message, Iphone, DataAnalysis, TrendCharts, Promotion} from '@element-plus/icons-vue'
+import {User, Lock, UserFilled, Message, Iphone, DataAnalysis, TrendCharts, Promotion, ArrowDown} from '@element-plus/icons-vue'
 import {doGet, doPost, doPut, doPostJson} from "@/http/httpRequest.js";
 import {getTokenName, removeToken} from "@/util/util.js";
+
+// ====== 开启火车旅行·横向流动视差阻尼滑轨核心控制 ======
+const scrollProgress = ref(0) // 核心缓释进度比例 (0 ~ 1)
+let targetProgress = 0        // 滑轮滑动指向的目标进度
+let animId = null             // requestAnimationFrame 动画循环 ID
+
+// 人性化登录浮现系数 (全流程平滑渐入，极富渐进性，保障登录绝对一目了然)
+const loginReveal = computed(() => {
+  return scrollProgress.value
+})
+
+const openWechatTip = () => {
+  ElMessage.info("微信扫码快捷登录通道正在整备中，请先使用专员账号登录哦。🍃")
+}
+
+// 鼠标滑轮滚动推进监听 (灵敏度加权至 0.0022，保障任意高低 DPI 滚轮或触摸板触控行进更顺脚)
+const handleWheel = (e) => {
+  targetProgress += e.deltaY * 0.0022
+  targetProgress = Math.max(0, Math.min(1, targetProgress))
+  
+  if (!animId) {
+    updateAnimation()
+  }
+}
+
+// 缓和阻尼物理惯性推导
+const updateAnimation = () => {
+  const diff = targetProgress - scrollProgress.value
+  if (Math.abs(diff) > 0.0004) {
+    scrollProgress.value += diff * 0.095 // 0.095 为惯性缓释速度系数
+    animId = requestAnimationFrame(updateAnimation)
+  } else {
+    scrollProgress.value = targetProgress
+    cancelAnimationFrame(animId)
+    animId = null
+  }
+}
+
+// 一键平滑直连终点站 (点击首屏引箭或下方提示即能自动加速平靠终站，绝顶人性化)
+const autoGlideToLogin = () => {
+  targetProgress = 1.0
+  if (!animId) {
+    updateAnimation()
+  }
+}
 
 const loginForm = reactive({
   loginAct: '',
@@ -260,7 +327,6 @@ const submitRegister = async () => {
   try {
     await registerFormRef.value.validate()
     registerBtnLoading.value = true
-    // 引入注册交互 API 调用，改用 doPostJson 发送原生 JSON，适配后端的 @RequestBody 接收
     const r = await doPostJson("/api/register", { ...registerForm })
     if (r.data && r.data.code === 200) {
       ElMessage.success("恭喜您，注册成功且已生成初始专员档，去右侧完成登录吧")
@@ -323,7 +389,6 @@ const openResetDialog = () => {
   if (resetFormRef.value) resetFormRef.value.resetFields()
 }
 
-// 邮件重设短信核验触发器与60秒倒数：
 const sendVerificationCode = async () => {
   if (!resetForm.loginAct || !resetForm.email) {
     ElMessage.warning("请务必填写预先对应的登录账号与邮箱信息才可以提取验证码哦")
@@ -331,7 +396,6 @@ const sendVerificationCode = async () => {
   }
   
   try {
-    // 修复 Bug：添加前置斜杠，且通过 r.data 获取返回数据包装体
     const r = await doGet("/api/password/reset/code", {
       loginAct: resetForm.loginAct,
       email: resetForm.email
@@ -360,7 +424,6 @@ const submitResetPassword = async () => {
   try {
     await resetFormRef.value.validate()
     resetBtnLoading.value = true
-    // 修复 Bug：添加前置斜杠，通过 r.data 解析状态且支持 Promise 式 validate 校验
     const r = await doPut("/api/password/reset", {
       loginAct: resetForm.loginAct,
       code: resetForm.code,
@@ -379,34 +442,35 @@ const submitResetPassword = async () => {
   }
 }
 
-//函数钩子，渲染dom元素后触发
+// 渲染 DOM 后挂载
 onMounted(() => {
   freeLogin();
+  
+  // 查找并监听 3D 阻尼平移
+  const scroller = document.querySelector('.cabin-viewport');
+  if (scroller) {
+    scroller.addEventListener('wheel', handleWheel, { passive: false });
+  }
 })
 
 const freeLogin = async () => {
   const token = window.localStorage.getItem(getTokenName());
   if (token) {
-    //token不为空
     const response = await doGet("/api/login/free", {});
     console.log('response响应值为：' , response);
 
     if (response.data.code === 200 ) {
-      //token验证成功
       window.location.href = "/dashboard";
     }
   }
 }
 
-
-//处理登录请求
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
   await loginFormRef.value.validate()
   loading.value = true
 
-  //构建请求数据
   const requestData = {
     loginAct: loginForm.loginAct,
     loginPwd: loginForm.loginPwd,
@@ -414,294 +478,514 @@ const handleLogin = async () => {
   }
   console.log('发送的登录参数:', requestData)
 
-  // ✅ 正确：直接 await，不要混用 then
   const response = await doPost('/api/login', requestData)
-
   console.log('后台用户信息', response)
 
-
-  // 处理业务状态码
   if (response.data.code === 200) {
-    //登录成功
     ElMessage.success('登录成功！')
     ElMessage.success("你好 " + response.data.data.loginAct)
-
-    //删除之前存储在localStorage和sessionStorage里面的token
     removeToken();
-    // 保存 token 或跳转
-    //前端存储jwt
     if (rememberMe.value === true) {
       window.localStorage.setItem(getTokenName(), response.data.data);
     } else {
       window.sessionStorage.setItem(getTokenName(), response.data.data);
     }
-    // 跳转系统总页面
     window.location.href = "/dashboard";
-
-
   } else {
-    //登录失败
     ElMessage.error(response.data.msg || '登录失败')
-
   }
-
   loading.value = false
 }
 
 </script>
 
 <style scoped>
-/* ============ 页面容器：与 Dashboard 一致的清新绿色品牌渐变 ============ */
-.login-container {
+/* ==================== 锁定整个浏览器上下视窗防滑脱 (100vw/100vh) ==================== */
+.cabin-viewport {
   position: relative;
+  width: 100vw;
   height: 100vh;
-  width: 100%;
+  overflow: hidden;
+  background-color: #0b110b; /* 森林深夜底色 */
+  box-sizing: border-box;
+}
+
+/* ==================== 火车厢体：作为主布局基座 (Z-Index: 5) ==================== */
+.train-cabin-wall {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 60%, #a5d6a7 100%);
-  overflow: hidden;
+  background: 
+    linear-gradient(135deg, #090e09 0%, #152417 50%, #060906 100%);
+  z-index: 5;
+}
+
+/* 拟物 3D 电镀拉丝车窗金属物理外框 */
+.train-window-frame {
+  position: relative;
+  width: 82vw;
+  height: 64vh;
+  max-width: 1100px;
+  max-height: 520px;
+  min-height: 430px; /* 保证卡片有足够且完美的支撑高度 */
+  border-radius: 46px;
+  background: #233124; /* 墨青钢片漆 */
+  padding: 16px;
   box-sizing: border-box;
-  padding: 0 20px; /* 容器内边距替代子元素 margin，避免 flex 子项宽度计算溢出 */
+  box-shadow: 
+    0 35px 85px rgba(0, 0, 0, 0.8), 
+    inset 0 12px 30px rgba(0, 0, 0, 0.75),
+    0 0 0 4px rgba(89, 107, 91, 0.65), /* 鎏金丝 */
+    0 6px 1px 7px rgba(0,0,0,0.5);
+  z-index: 10;
 }
 
-/* ============ 浮动装饰圆，增强高级感 ============ */
-.deco-circle {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.4;
-  pointer-events: none;
-}
-.deco-circle-1 {
-  width: 320px; height: 320px;
-  background: radial-gradient(circle, rgba(76, 175, 80, 0.25), transparent 70%);
-  top: -80px; left: -80px;
-  animation: float 9s ease-in-out infinite;
-}
-.deco-circle-2 {
-  width: 240px; height: 240px;
-  background: radial-gradient(circle, rgba(46, 125, 50, 0.18), transparent 70%);
-  bottom: -60px; right: 8%;
-  animation: float 11s ease-in-out infinite reverse;
-}
-.deco-circle-3 {
-  width: 150px; height: 150px;
-  background: radial-gradient(circle, rgba(165, 214, 167, 0.6), transparent 70%);
-  top: 18%; right: 22%;
-  animation: float 7s ease-in-out infinite;
-}
-@keyframes float {
-  0%, 100% { transform: translateY(0) scale(1); }
-  50% { transform: translateY(-24px) scale(1.05); }
-}
-
-/* ============ 双栏布局包装器 ============ */
-.login-wrapper {
-  display: flex;
-  align-items: stretch;
+/* 车窗内边缘物理裁剪容器 (沙盒遮罩：所有横向履带仅在其内部滑动，多余元素绝不外溢) */
+.train-window-inner {
+  position: relative;
   width: 100%;
-  max-width: 880px; /* 修复：配合容器 padding 收缩，不再溢出视口右边界 */
-  box-sizing: border-box;
-  border-radius: 24px;
-  overflow: hidden;
-  box-shadow: 0 24px 48px -12px rgba(27, 94, 32, 0.25);
-  animation: fadeUp 0.6s ease-out;
-}
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  height: 100%;
+  border-radius: 30px;
+  overflow: hidden; /* Clipper 沙盒 */
+  background-color: #050a06;
+  box-shadow: inset 0 20px 40px rgba(0, 0, 0, 0.9);
 }
 
-/* ============ 左侧品牌展示区 ============ */
-.brand-panel {
-  flex: 1 1 0;   /* 弹性填充剩余空间，与右侧卡片形成均衡分栏 */
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  background: linear-gradient(160deg, #2e7d32 0%, #4caf50 55%, #66bb6a 100%);
-  color: #fff;
-  padding: 48px 36px;
-  box-sizing: border-box;
-  position: relative;
-}
-.brand-panel::after {
-  content: '';
+/* ==================== 【唯一、横贯全局的超长全景风光长卷】 ==================== */
+/* 宽度设为 140% 极画卷，从 left 0 起始，仅滑行 X轴 25% 距离，彻底打消黑边露白！ */
+.window-landscape-wide-panorama {
   position: absolute;
-  width: 220px; height: 220px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  right: -70px; bottom: -70px;
-}
-.brand-content {
-  position: relative;
+  top: 0; left: 0;
+  width: 140%;
+  height: 100%;
+  background-image: url('https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?auto=format&fit=crop&w=1600&q=80');
+  background-position: center 46%;
+  background-size: cover;
+  transition: transform 0.1s cubic-bezier(0.1, 0.75, 0.25, 1);
   z-index: 1;
 }
-.brand-logo {
-  width: 52px; height: 52px;
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: bold;
-  margin-bottom: 20px;
-  backdrop-filter: blur(4px);
-}
-.brand-name {
-  font-size: 28px;
-  font-weight: 700;
-  margin: 0 0 8px;
-  letter-spacing: 1px;
-}
-.brand-slogan {
-  font-size: 13px;
-  opacity: 0.85;
-  margin: 0 0 36px;
-  letter-spacing: 2px;
-}
-.brand-features .feature-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-  padding: 12px 0;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
-}
-.brand-features .feature-item:last-child {
-  border-bottom: none;
-}
-.brand-features .el-icon {
-  font-size: 18px;
-  background: rgba(255, 255, 255, 0.18);
+
+/* 前台悬浮座号牌 (固定附着在车壁钢体上，营造 3D 立体空间) */
+.seat-badge {
+  position: absolute;
+  padding: 11px 9px;
+  background: linear-gradient(135deg, #a7835b 0%, #72522e 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
-  padding: 6px;
+  color: #f0dbbe;
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 12px;
+  box-shadow: 
+    0 6px 15px rgba(0,0,0,0.5),
+    inset 0 1px 1px rgba(255,255,255,0.2);
+  width: 25px;
+  z-index: 28; /* 高于跑道 */
+}
+.seat-badge::after {
+  content: '·';
+  position: absolute;
+  top: 2px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; color: rgba(255, 255, 255, 0.5);
+}
+.seat-badge span {
+  font-size: 9px;
+  font-weight: 300;
+  opacity: 0.8;
+}
+.seat-badge-left {
+  left: 3.5vw;
+  top: 36vh;
+}
+.seat-badge-right {
+  right: 3.5vw;
+  top: 36vh;
 }
 
-/* ============ 右侧登录卡片 ============ */
-.login-card {
-  flex: 0 1 460px;   /* 基准 460px，允许收缩；左侧品牌区弹性填充剩余空间 */
-  min-width: 0;      /* 允许 flex 子项收缩到内容宽度以下 */
-  border-radius: 0;
-  border: none;
-  background: #ffffff;
+/* ==================== 窗内：横向视差两幅分轴 (背景设为透明) ==================== */
+.window-parallax-track {
+  display: none; 
 }
-.login-card :deep(.el-card__body) {
+
+/* 单节跑道幅块 (绝对定位沙盒框架，通过 translateX 差值对流实现在滑动结束时 100% 投射在窗心正中央) */
+.track-block {
   width: 100%;
-  box-sizing: border-box; /* 核心修复：padding 计入宽度，内容不再溢出右边界 */
+  height: 100%;
+  position: absolute;
+  top: 0; left: 0;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
 }
 
-.login-header {
+/* ===== 【第一幅画区：铁轨森林意境】 ===== */
+.block-train-view {
+  text-align: center;
+  transition: transform 0.1s cubic-bezier(0.1, 0.75, 0.25, 1), opacity 0.1s ease-out;
+}
+
+.scrolling-shadows {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 60%, rgba(0,0,0,0.45) 100%);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.window-atmosphere-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0%, transparent 80%),
+    radial-gradient(circle at 50% 50%, rgba(92, 139, 99, 0.05), transparent 75%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.window-caption {
+  position: relative;
+  z-index: 12;
+  font-family: 'PingFang SC', sans-serif;
+  color: #ffffff;
+  pointer-events: none;
+}
+.caption-main {
+  font-size: 24px;
+  font-weight: 300;
+  color: #dfede1;
+  letter-spacing: 12px;
+  margin: 0 0 12px 0;
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+  font-family: Georgia, serif;
+}
+.caption-sub {
+  font-size: 38px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 15px;
+  margin: 0 0 20px 0;
+  text-shadow: 0 5px 20px rgba(0, 0, 0, 0.6);
+}
+.caption-desc {
+  font-size: 11px;
+  font-weight: 500;
+  color: #92b196;
+  letter-spacing: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: inline-block;
+  padding-top: 10px;
+  width: 120px;
+}
+
+/* 鼠标滚轮引导 */
+.scroll-tip-indicator {
+  position: absolute;
+  bottom: 4vh;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 26px;
+  gap: 8px;
+  z-index: 15;
+  color: rgba(255, 255, 255, 0.9);
+  pointer-events: auto; /* 允许点击直达 */
+  transition: opacity 0.12s ease-out;
 }
-.login-avatar {
-  background: linear-gradient(145deg, #4caf50, #66bb6a);
-  margin-bottom: 14px;
-  box-shadow: 0 6px 14px rgba(76, 175, 80, 0.4);
+.tip-text {
+  font-size: 11.5px;
+  letter-spacing: 2px;
+  font-weight: 500;
+  color: #addbb4;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
-.login-title {
-  margin: 0 0 4px 0;
-  font-weight: 700;
-  font-size: 24px;
-  color: #1b5e20;
+.mouse-icon {
+  width: 18px;
+  height: 30px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(173, 219, 180, 0.85);
+  position: relative;
 }
-.login-subtitle {
-  margin: 0;
-  color: #8a9a8e;
-  font-size: 13px;
+.mouse-wheel {
+  width: 3px;
+  height: 5px;
+  background-color: #addbb4;
+  position: absolute;
+  top: 6px; left: 50%;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  animation: mouse-slide 1.8s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+@keyframes mouse-slide {
+  0% { transform: translate(-50%, 0); opacity: 1; }
+  100% { transform: translate(-50%, 13px); opacity: 0; }
+}
+.arrow-down-bounce {
+  font-size: 12px;
+  color: #addbb4;
+  animation: arrow-bounce 1.5s infinite;
+}
+@keyframes arrow-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
 }
 
-/* ============ 表单美化：绿色主题 ============ */
-.login-form :deep(.el-form-item) {
-  margin-bottom: 22px;
+/* ===== 【第二幅画区：停靠终点登录表单，绝对对齐中央】 ===== */
+.block-login-view {
+  transition: transform 0.1s cubic-bezier(0.1, 0.75, 0.25, 1);
 }
-.login-form :deep(.el-input__wrapper) {
-  padding: 4px 12px;
+
+/* 登录框包装器：支持在车窗内部弹性居中 */
+.journey-login-wrapper {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.12s ease-out;
+}
+
+/* 磨砂玻璃拉窗卡片 (调高遮挡度近 96.5%：遮蔽后方森林，卡片超矮化紧凑设计保证所有分辨率一屏100%全显露) */
+.journey-login-card {
+  position: relative;
+  width: 90%;
+  max-width: 410px;
+  border-radius: 20px;
+  background: rgba(14, 25, 16, 0.965); /* 几乎不透光的亚光墨玉，极大拉升可读性与人性化 */
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 
+    0 30px 75px rgba(1, 3, 2, 0.85),
+    inset 0 1px 1px rgba(255, 255, 255, 0.15);
+  padding: 20px 24px; /* 紧扣矮身材定制，全露出 */
+  box-sizing: border-box;
+  overflow: hidden; /* 高度完全收拢，不需要卡盘垂直滚动 */
+}
+
+/* 精致微顶 Ribbon 小条 */
+.journey-header-thin {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+  padding-bottom: 12px;
+}
+.ribbon-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ribbon-logo {
+  font-size: 16px;
+  animation: leaf-sway 2.5s infinite ease-in-out;
+}
+@keyframes leaf-sway {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(15deg) scale(1.1); }
+}
+.ribbon-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #dfede1;
+  letter-spacing: 1.5px;
+}
+
+/* 表单定制 */
+.journey-form :deep(.el-form-item) {
+  margin-bottom: 12px; 
+}
+.journey-form :deep(.el-input__wrapper) {
+  padding: 5px 14px;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.06);
-  transition: box-shadow 0.25s;
+  background-color: rgba(14, 25, 17, 0.6) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
-.login-form :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 4px 14px rgba(76, 175, 80, 0.22);
+.journey-form :deep(.el-input__wrapper:hover) {
+  background-color: rgba(14, 25, 17, 0.8) !important;
+  border-color: rgba(123, 160, 130, 0.35) !important;
 }
-.login-form :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #4caf50 inset, 0 4px 14px rgba(76, 175, 80, 0.22);
+.journey-form :deep(.el-input__wrapper.is-focus) {
+  background-color: rgba(10, 18, 12, 0.92) !important;
+  border-color: #5c8b63 !important;
+  box-shadow: 
+    inset 0 1px 1px rgba(0,0,0,0.1),
+    0 4px 18px rgba(92, 139, 99, 0.25) !important;
 }
-.login-form :deep(.el-input__prefix .el-icon) {
-  color: #66bb6a;
+
+.journey-form :deep(.el-input__inner) {
+  color: #ffffff !important;
+  font-weight: 500;
+  font-size: 13.5px;
 }
-.form-extra {
+.journey-form :deep(.el-input__inner::placeholder) {
+  color: #6e8675;
+}
+
+.journey-form :deep(.el-input__prefix .el-icon) {
+  color: #5e7764;
+  font-size: 15.5px;
+  transition: all 0.3s ease;
+}
+.journey-form :deep(.is-focus .el-input__prefix .el-icon) {
+  color: #aad5b2;
+  transform: translateY(-1px) scale(1.08);
+}
+
+.journey-extra {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 10px 0 24px;
+  margin: 10px 2px 14px;
 }
-.form-extra :deep(.el-link--primary) {
-  color: #2e7d32;
+.journey-extra :deep(.el-checkbox__label) {
+  color: #9ab4a1;
+  font-weight: 500;
+  font-size: 13px;
+}
+.journey-extra :deep(.el-checkbox__inner) {
+  border-radius: 4px;
+  border-color: rgba(123, 160, 130, 0.3);
+  background-color: rgba(14, 25, 17, 0.6);
+}
+.journey-extra :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: #5c8b63;
+  border-color: #5c8b63;
 }
 
-.login-button {
+.forgot-link, .register-clickable, .wechat-quick-link {
+  color: #addbb4 !important;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  padding-bottom: 2px;
+  transition: color 0.3s;
+}
+.forgot-link::after, .journey-register-tip span::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 50%;
+  width: 0; height: 1.5px;
+  background: linear-gradient(90deg, #addbb4, #7ba082);
+  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform: translateX(-50%);
+}
+.forgot-link:hover, .register-clickable:hover, .wechat-quick-link:hover {
+  color: #ffffff !important;
+}
+.forgot-link:hover::after, .journey-register-tip .register-clickable:hover::after {
   width: 100%;
-  height: 48px;
-  font-size: 16px;
+}
+
+.journey-button {
+  position: relative;
+  width: 100%;
+  height: 44px; /* 精简 */
+  font-size: 15px;
   font-weight: 600;
   border-radius: 12px;
-  letter-spacing: 2px;
+  letter-spacing: 5px;
   border: none;
-  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
-  box-shadow: 0 8px 20px rgba(76, 175, 80, 0.35);
-  transition: all 0.3s;
+  background: linear-gradient(135deg, #4b7551 0%, #5c8b63 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
-.login-button:hover, .login-button:focus {
+.journey-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(76, 175, 80, 0.45);
-  background: linear-gradient(135deg, #43a047 0%, #5cb860 100%);
-}
-.login-button:active {
-  transform: translateY(0);
+  background: linear-gradient(135deg, #5c8b63 0%, #6e9f76 100%) !important;
+  box-shadow: 
+    0 10px 22px rgba(0, 0, 0, 0.35),
+    0 0 15px rgba(92, 139, 99, 0.3);
 }
 
-.register-tip {
+.line-divider {
+  display: none; 
+}
+.wechat-login-row {
+  display: none; 
+}
+
+.journey-register-tip {
   text-align: center;
-  margin-top: 18px;
-  color: #8a9a8e;
-  font-size: 14px;
+  color: #6e8675;
+  font-size: 13px;
+  font-weight: 500;
+  margin-top: 14px;
 }
-.register-tip :deep(.el-link--primary) {
-  color: #2e7d32;
-  font-weight: 600;
+.wechat-quick-link {
+  color: #728c79 !important;
 }
 
-/* ============ 响应式适配 ============ */
-@media (max-width: 768px) {
-  .brand-panel {
-    display: none; /* 移动端只保留表单区，避免拥挤 */
+/* ==================== 弹窗 DiaLog 全局质感 ==================== */
+:deep(.el-dialog) {
+  border-radius: 20px !important;
+  overflow: hidden;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+}
+:deep(.el-dialog__header) {
+  margin-right: 0px;
+  padding: 24px 24px 12px;
+  border-bottom: 1px solid rgba(46, 125, 50, 0.05);
+}
+:deep(.el-dialog__title) {
+  font-weight: 700;
+  font-size: 18px;
+  color: #1b5e20;
+}
+:deep(.el-dialog__body) {
+  padding: 26px 24px !important;
+}
+:deep(.el-dialog__footer) {
+  padding: 12px 24px 24px;
+  border-top: 1px solid rgba(46, 125, 50, 0.05);
+}
+
+/* ==================== 高保真响应式适配 ==================== */
+@media (max-width: 820px) {
+  .train-window-frame {
+    width: 90vw;
+    height: 70vh;
+    padding: 10px;
+    border-radius: 36px;
   }
-  .login-wrapper {
-    max-width: 460px;
-    border-radius: 20px;
+  .train-window-inner {
+    border-radius: 24px;
   }
-  .login-card {
-    width: 100%;
-    border-radius: 20px;
+  .caption-main {
+    font-size: 19px;
+    letter-spacing: 8px;
+  }
+  .caption-sub {
+    font-size: 30px;
+    letter-spacing: 11px;
+  }
+  .seat-badge {
+    display: none;
   }
 }
 @media (max-width: 480px) {
-  .login-container {
-    justify-content: center;
+  .train-window-frame {
+    height: 76vh;
   }
-  .login-wrapper {
-    margin: 0 12px;
+  .journey-login-card {
+    padding: 20px 18px;
+    width: 94%;
   }
-  .login-card :deep(.el-card__body) {
-    padding: 26px !important;
-  }
-  .login-title {
-    font-size: 22px;
+  .journey-title {
+    font-size: 20px;
   }
 }
 </style>
