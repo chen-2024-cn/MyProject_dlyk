@@ -62,7 +62,8 @@ public class SecurityConfig {
                     authorize.requestMatchers("/api/login",
                                     "/api/register",
                                     "/api/password/reset/code",
-                                    "/api/password/reset")
+                                    "/api/password/reset",
+                                    "/api/system/info/public")
                             .permitAll()
                             .anyRequest()
                             .authenticated();//其他任何请求需要登录后才能访问

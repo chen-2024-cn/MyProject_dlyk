@@ -23,8 +23,13 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="系统编码">
-              <el-input v-model="form.systemCode" disabled />
+            <el-form-item label="系统默认主题" prop="systemCode">
+              <el-select v-model="form.systemCode" placeholder="请选择系统默认主题" style="width: 100%;">
+                <el-option label="森林墨绿 (Forest)" value="forest" />
+                <el-option label="静谧深海 (Midnight)" value="midnight" />
+                <el-option label="奢华酒红 (Burgundy)" value="burgundy" />
+                <el-option label="极客夜色 (Cyberpunk)" value="cyberpunk" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -198,6 +203,8 @@ const submitForm = async () => {
       })
       if (res.data.code === 200) {
         ElMessage.success('保存成功')
+        // 瞬间对全局所有视图派发换肤广播，让管理员也能即时感受新主题
+        window.dispatchEvent(new CustomEvent('theme-change', { detail: form.systemCode }))
       } else {
         ElMessage.error(res.data.msg || '保存失败')
       }
@@ -213,9 +220,8 @@ const submitForm = async () => {
 
 <style scoped>
 .system-page {
-  padding: 20px;
-  background-color: #f0f2f5;
-  min-height: 100vh;
+  padding: 0;
+  background-color: transparent;
 }
 
 .page-card {

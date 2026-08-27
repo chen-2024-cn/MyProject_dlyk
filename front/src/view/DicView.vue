@@ -327,9 +327,8 @@ onMounted(() => {
 
 <style scoped>
 .dic-page {
-  padding: 20px;
-  background-color: #f0f2f5;
-  min-height: 100vh;
+  padding: 0;
+  background-color: transparent;
 }
 
 .panel-card {

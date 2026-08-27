@@ -8,7 +8,7 @@
 
     <!-- 成功加载状态 -->
     <div v-else-if="UserDetail" class="detail-content">
-      <el-card class="user-card" shadow="hover" body-style="{ padding: 0 }">
+      <div class="user-detail-wrapper">
         <!-- 装饰性顶部条 -->
         <div class="card-accent"></div>
 
@@ -205,7 +205,7 @@
             系统记录 · 信息真实有效
           </span>
         </div>
-      </el-card>
+      </div>
     </div>
 
     <!-- 无数据状态 -->
@@ -417,8 +417,8 @@ onMounted(() => {
 
 .user-detail-container {
   min-height: 50vh;
-  padding: 32px 24px;
-  background: linear-gradient(145deg, #f0f4f8 0%, #E8F5E9 100%);
+  padding: 0;
+  background: transparent;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -429,9 +429,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(8px);
-  border-radius: 32px;
+  background: transparent;
   color: #3b82f6;
   font-size: 16px;
   animation: fadeInUp 0.5s ease;
@@ -445,36 +443,31 @@ onMounted(() => {
   color: #4b5563;
 }
 
-/* 卡片容器 */
-.user-card {
+/* 用户详情包装器 */
+.user-detail-wrapper {
   max-width: 1000px;
   margin: 0 auto;
-  border-radius: 32px;
-  border: none;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   overflow: hidden;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
-}
-.user-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.12);
 }
 
 /* 装饰顶条 */
 .card-accent {
-  height: 6px;
+  height: 4px;
   background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b);
+  border-radius: 2px;
+  margin-bottom: 20px;
 }
 
-/* 卡片头部 */
+/* 头部结构 */
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 28px 32px 16px 32px;
-  background: #ffffff;
+  padding: 10px 0 20px 0;
+  background: transparent;
   flex-wrap: wrap;
   gap: 20px;
+  border-bottom: 1px dashed #e2e8f0;
 }
 .user-profile {
   display: flex;
@@ -542,8 +535,8 @@ onMounted(() => {
 
 /* 信息区域 */
 .info-section {
-  padding: 8px 32px 20px 32px;
-  background: #ffffff;
+  padding: 24px 0;
+  background: transparent;
 }
 .section-title {
   display: flex;
@@ -624,10 +617,10 @@ onMounted(() => {
 
 /* 卡片底部 */
 .card-footer {
-  padding: 18px 32px 24px 32px;
+  padding: 16px 0 0 0;
   border-top: 1px solid #f0f2f5;
   text-align: center;
-  background: #fefefe;
+  background: transparent;
 }
 .footer-text {
   display: inline-flex;
@@ -645,23 +638,21 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 500px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(4px);
-  border-radius: 32px;
-  margin: 20px;
+  min-height: 400px;
+  background: transparent;
+  border-radius: 8px;
   animation: fadeInUp 0.5s ease;
 }
 
 /* 响应式设计 */
 @media (max-width: 768px) {
   .user-detail-container {
-    padding: 20px 16px;
+    padding: 0;
   }
   .card-header {
     flex-direction: column;
     align-items: flex-start;
-    padding: 20px 20px 12px 20px;
+    padding: 10px 0;
   }
   .user-profile {
     width: 100%;
@@ -674,7 +665,7 @@ onMounted(() => {
     justify-content: center;
   }
   .info-section {
-    padding: 8px 20px 16px 20px;
+    padding: 16px 0;
   }
   .section-title {
     font-size: 18px;

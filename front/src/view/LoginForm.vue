@@ -6,11 +6,8 @@
     <div class="seat-badge seat-badge-left">09<br/><span>A</span></div>
     <div class="seat-badge seat-badge-right">16<br/><span>B</span></div>
 
-    <!-- 【列车钢制壁板与车窗整体沙盒】 -->
-    <div class="train-cabin-wall">
-      
-      <!-- 铬电镀拉丝车窗 3D 拟真金属物理外框 -->
-      <div class="train-window-frame">
+    <!-- 铬电镀拉丝车窗 3D 拟真金属物理外框 -->
+    <div class="train-window-frame">
         
         <!-- 车窗内部高保真裁剪蒙版 (在内部实现所有视差滚动，绝对保证不溢出车窗外，对齐完美) -->
         <div class="train-window-inner">
@@ -55,7 +52,7 @@
                 <div class="journey-header-thin">
                   <div class="ribbon-brand">
                     <span class="ribbon-logo">🍃</span>
-                    <span class="ribbon-text">专员登录舱 · 欢迎回到 CRM 智慧管理端</span>
+                    <span class="ribbon-text">专员登录舱 · 欢迎回到 {{ systemConfig.name }} 智慧管理端</span>
                   </div>
                 </div>
 
@@ -128,8 +125,6 @@
 
         </div> <!-- train-window-inner -->
       </div> <!-- train-window-frame -->
-      
-    </div> <!-- train-cabin-wall -->
 
     <!-- [全局注册弹窗] -->
     <el-dialog v-model="registerVisible" title="新专员注册" width="480px" :close-on-click-modal="false" :destroy-on-close="true" :append-to-body="true" align-center>
@@ -202,6 +197,26 @@ import {ElMessage} from 'element-plus'
 import {User, Lock, UserFilled, Message, Iphone, DataAnalysis, TrendCharts, Promotion, ArrowDown} from '@element-plus/icons-vue'
 import {doGet, doPost, doPut, doPostJson} from "@/http/httpRequest.js";
 import {getTokenName, removeToken} from "@/util/util.js";
+
+// 全局公共系统配置
+const systemConfig = ref({
+  name: '智路 CRM',
+  title: '智路 CRM 管理系统'
+})
+
+const loadSystemConfig = async () => {
+  try {
+    const res = await doGet("/api/system/info/public", {});
+    if (res.data.code === 200 && res.data.data) {
+      systemConfig.value = res.data.data;
+      if (res.data.data.title) {
+        document.title = res.data.data.title;
+      }
+    }
+  } catch (error) {
+    console.error("加载公开系统配置异常，已使用保底兜底信息:", error);
+  }
+}
 
 // ====== 开启火车旅行·横向流动视差阻尼滑轨核心控制 ======
 const scrollProgress = ref(0) // 核心缓释进度比例 (0 ~ 1)
@@ -444,6 +459,7 @@ const submitResetPassword = async () => {
 
 // 渲染 DOM 后挂载
 onMounted(() => {
+  loadSystemConfig();
   freeLogin();
   
   // 查找并监听 3D 阻尼平移
@@ -500,26 +516,18 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-/* ==================== 锁定整个浏览器上下视窗防滑脱 (100vw/100vh) ==================== */
+/* ==================== 锁定整个浏览器上下视窗防滑脱 & 列车座舱主布局基座 ==================== */
 .cabin-viewport {
   position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background-color: #0b110b; /* 森林深夜底色 */
   box-sizing: border-box;
-}
-
-/* ==================== 火车厢体：作为主布局基座 (Z-Index: 5) ==================== */
-.train-cabin-wall {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   background: 
     linear-gradient(135deg, #090e09 0%, #152417 50%, #060906 100%);
-  z-index: 5;
 }
 
 /* 拟物 3D 电镀拉丝车窗金属物理外框 */

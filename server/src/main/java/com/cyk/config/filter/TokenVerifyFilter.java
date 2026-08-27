@@ -43,7 +43,8 @@ public class TokenVerifyFilter extends OncePerRequestFilter {
         if (requestURI.equals(Constants.LOGIN_URI) 
                 || requestURI.equals("/api/register")
                 || requestURI.equals("/api/password/reset/code")
-                || requestURI.equals("/api/password/reset")) { 
+                || requestURI.equals("/api/password/reset")
+                || requestURI.equals("/api/system/info/public")) {
             // 验证通过，不做JWT校验，让Filter链继续执行
             filterChain.doFilter(request, response);
 
