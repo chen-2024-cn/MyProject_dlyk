@@ -20,6 +20,7 @@ import com.cyk.util.JWTUtils;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -36,6 +37,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 public class UserServiceImpl implements UserService {
 
@@ -74,7 +76,8 @@ public class UserServiceImpl implements UserService {
         }
 
         TUser tUser = tUserMapper.selectByLoginAct(username);
-        System.out.println("UserServiceImpl类：" + tUser);
+        // 只记录关键登录账号标识，不输出整个用户对象（避免密码哈希等敏感字段落日志）
+        log.debug("登录加载用户信息，账号：{}", username);
         if (tUser == null) {
             throw new UsernameNotFoundException("登录账号不存在");
         }
@@ -157,12 +160,9 @@ public class UserServiceImpl implements UserService {
         redisService.setValue(codeKey, code, Constants.RESET_PWD_CODE_EXPIRE_SECONDS, TimeUnit.SECONDS);
         redisService.setValue(limitKey, "sent", Constants.RESET_PWD_LIMIT_EXPIRE_SECONDS, TimeUnit.SECONDS);
 
-        // 5. 本地高可用弹性辅助调试打印
-        System.out.println("=================================================");
-        System.out.println("  [CRM 业务防线：UserServiceImpl 开发降级打印]：");
-        System.out.println("  账号: " + loginAct + " | 绑定邮箱: " + email);
-        System.out.println("  本地虚拟核验码: " + code + " (该验证码在5分钟内有效)");
-        System.out.println("=================================================");
+        // 5. 本地联调验证码降级打印（本地无 SMTP 依赖，验证码从后台日志复制；用带占位符的 SLF4J 输出）
+        log.info("[CRM 业务防线：重置密码验证码] 账号: {} | 绑定邮箱: {} | 本地虚拟核验码: {} (该验证码在5分钟内有效)",
+                loginAct, email, code);
 
         return R.OK("核验验证码已发出，请注意查看（本地联调可在终端/后台直接复制）");
     }
@@ -359,8 +359,41 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void updateLastLoginTime(TUser tUser) {
-        tUser.setLastLoginTime(new Date());
-        tUserMapper.updateByPrimaryKeySelective(tUser);
+        // 单列精准更新最近登录时间，绝不使用 updateByPrimaryKeySelective 把登录时的 JWT 旧快照整表回写，
+        // 否则会覆盖用户在个人中心刚编辑的最新姓名/手机/邮箱（"编辑后不生效"的根因之一）
+        tUserMapper.updateLastLoginTimeById(tUser.getId());
+    }
+
+    @Override
+    public TUser getUserInfo(Integer userId) {
+        // 直接查数据库拿"最新"基础资料（关联查出创建人/编辑人姓名，页面"创建专员"回显不丢），
+        // 而不是沿用登录时打入 JWT 的旧快照，这样用户在个人中心编辑的姓名/手机/邮箱才能被真实回显
+        TUser tUser = tUserMapper.selectDetailById(userId);
+        if (tUser == null) {
+            return null;
+        }
+        // 脱敏：密码哈希不允许下发前端
+        tUser.setLoginPwd(null);
+
+        // 查询用户角色
+        List<TRole> tRoles = tRoleMapper.selectByUserId(tUser.getId());
+        List<String> roleNames = new ArrayList<>();
+        tRoles.forEach(tRole -> roleNames.add(tRole.getRole()));
+        tUser.setRoleList(roleNames);
+
+        // 查询用户的菜单权限
+        List<TPermission> menuPermissionList = tPermissionMapper.selectMenuPermissionByUserId(tUser.getId());
+        tUser.setMenuPermissionList(menuPermissionList);
+
+        // 查询用户按钮权限
+        List<TPermission> buttonPermissionList = tPermissionMapper.selectButtonPermissionByUserId(tUser.getId());
+        List<String> permissionCodes = new ArrayList<>();
+        for (TPermission tPermission : buttonPermissionList) {
+            permissionCodes.add(tPermission.getCode());
+        }
+        tUser.setPermissionList(permissionCodes);
+
+        return tUser;
     }
 
     @Override

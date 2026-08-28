@@ -293,21 +293,50 @@ const groupedPermissions = computed(() => {
 // ==================== 扩展功能 2：专员快捷便签备忘录机制 ====================
 const notepadText = ref('')
 const todoNotes = ref([])
+// 当前登录用户ID（便签存储按用户隔离的依据）
+const notesUserId = ref(null)
+
+// 便签存储 Key 按「用户ID」隔离：修复原固定 Key 导致同一浏览器下所有账号共享同一份便签的缺陷。
+// 命名规范：业务前缀:用户ID，例如 crm-todo-notes:3
+const NOTES_KEY_PREFIX = 'crm-todo-notes:'
+const LEGACY_SHARED_NOTES_KEY = 'crm-todo-notes' // 历史版本的全局共享 Key（升级兼容用）
+
+const getNotesStorageKey = () => NOTES_KEY_PREFIX + notesUserId.value
 
 const loadNotes = () => {
-  const local = localStorage.getItem('crm-todo-notes')
+  // 登录人信息尚未就绪时不加载（此时无法确定归属用户）
+  if (!notesUserId.value) return
+
+  const storageKey = getNotesStorageKey()
+  let local = localStorage.getItem(storageKey)
+
+  // 历史版本兼容：旧数据存在固定全局 Key（所有账号共享）。升级后首次打开的账号接管旧数据，
+  // 其余账号各自从默认示例开始，确保便签不再串账号；同时清除遗留的全局 Key。
+  if (!local && localStorage.getItem(LEGACY_SHARED_NOTES_KEY)) {
+    local = localStorage.getItem(LEGACY_SHARED_NOTES_KEY)
+    localStorage.setItem(storageKey, local)
+    localStorage.removeItem(LEGACY_SHARED_NOTES_KEY)
+  }
+
   if (local) {
-    todoNotes.value = JSON.parse(local)
+    try {
+      todoNotes.value = JSON.parse(local)
+    } catch (e) {
+      console.error('便签数据解析失败，已重置为空列表', e)
+      todoNotes.value = []
+    }
   } else {
     todoNotes.value = [
       { id: Date.now(), text: '尝试在下方定制一套自己喜欢的高颜值主题皮肤！', done: false },
       { id: Date.now() + 1, text: '回访下午在销售线索中新指派的客户方案', done: false }
     ]
+    saveNotes()
   }
 }
 
 const saveNotes = () => {
-  localStorage.setItem('crm-todo-notes', JSON.stringify(todoNotes.value))
+  if (!notesUserId.value) return
+  localStorage.setItem(getNotesStorageKey(), JSON.stringify(todoNotes.value))
 }
 
 const addNote = () => {
@@ -393,7 +422,7 @@ const submitEdit = async () => {
   await editFormRef.value.validate(async (valid) => {
     if (!valid) return
     try {
-      const res = await doPut('api/profile', { name: editForm.name, phone: editForm.phone, email: editForm.email })
+      const res = await doPut('/api/profile', { name: editForm.name, phone: editForm.phone, email: editForm.email })
       if (res.data.code === 200) {
         ElMessage.success('资料修改成功')
         editDialogVisible.value = false
@@ -444,7 +473,7 @@ const submitPwd = async () => {
   await pwdFormRef.value.validate(async (valid) => {
     if (!valid) return
     try {
-      const res = await doPut('api/profile/password', {
+      const res = await doPut('/api/profile/password', {
         oldPassword: pwdForm.oldPassword,
         newPassword: pwdForm.newPassword
       })
@@ -474,6 +503,9 @@ const loadUserInfo = async () => {
     const res = await doGet('/api/login/info', {})
     if (res.data.code === 200) {
       userInfo.value = res.data.data
+      // 记录当前登录人ID，作为便签存储隔离的依据，随后再按用户加载便签
+      notesUserId.value = res.data.data.id
+      loadNotes()
     }
   } catch (e) {
     console.error('加载用户信息失败', e)
@@ -481,8 +513,8 @@ const loadUserInfo = async () => {
 }
 
 onMounted(() => {
+  // 先加载登录人信息，拿到用户ID后再加载该用户专属的便签数据（修复多账号共享便签问题）
   loadUserInfo()
-  loadNotes()
   loadSystemTheme()
 })
 </script>

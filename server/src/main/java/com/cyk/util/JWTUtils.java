@@ -12,12 +12,14 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 
 /**
  * jwt工具类
  *
  */
+@Slf4j
 public class JWTUtils {
 
     public static String SECRET = "dY8300olWQ3345;1d<3w48";
@@ -58,7 +60,8 @@ public class JWTUtils {
 
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            // 验证失败场景（签名错误/过期等）属预期业务分支，记录 warn 即可；绝不上带令牌原文防泄露凭证。
+            log.warn("JWT 验证未通过: {}", e.getMessage());
         }
         return false;
     }
@@ -86,10 +89,10 @@ public class JWTUtils {
             int age = ageClaim.asInt();
             String phone = phoneClaim.asString();
             Date birthDay = birthDayClaim.asDate();
-            
-            System.out.println(nick + " -- " + age + " -- " + phone + " -- " + birthDay);
+
+            log.info("JWT 负载解析结果: nick={} -- age={} -- phone={} -- birthDay={}", nick, age, phone, birthDay);
         } catch (TokenExpiredException e) {
-            e.printStackTrace();
+            log.error("JWT 解析失败：令牌已过期", e);
             throw new RuntimeException(e);
         }
     }
@@ -109,7 +112,7 @@ public class JWTUtils {
 
             return JSONUtils.toBean(userJSON, TUser.class);
         } catch (TokenExpiredException e) {
-            e.printStackTrace();
+            log.error("解析用户 JWT 失败：令牌已过期", e);
             throw new RuntimeException(e);
         }
     }

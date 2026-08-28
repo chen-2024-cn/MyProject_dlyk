@@ -31,6 +31,12 @@ public interface UserService extends UserDetailsService {
 
     void updateLastLoginTime(TUser tUser);
 
+    /**
+     * 获取登录人的最新完整信息（实时查库，而不是用登录时 JWT 快照）。
+     * 包含：基础字段（数据库最新值）、角色、菜单权限、按钮权限。
+     */
+    TUser getUserInfo(Integer userId);
+
     int updateProfile(TUser user);
 
     int changePassword(Integer userId, String encodedPassword);

@@ -10,6 +10,7 @@ import com.cyk.service.ActivityService;
 import com.cyk.service.DicTypeService;
 import com.cyk.service.ProductService;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,6 +20,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @EnableScheduling //开启定时任务
 @Component
 public class DataTask {
@@ -36,8 +38,8 @@ public class DataTask {
     //@Scheduled(cron = "${project.task.cron}", zone = "Asia/Shanghai", timeUnit = TimeUnit.MILLISECONDS, initialDelay  = 1000)
     @Scheduled(fixedDelayString = "${project.task.delay}", zone = "Asia/Shanghai", timeUnit = TimeUnit.MILLISECONDS, initialDelay  = 1000)
     public void task() {
-        //定时任务要执行的业务逻辑代码
-        System.out.println("定时任务业务逻辑执行......" + new Date());
+        //定时任务要执行的业务逻辑代码（使用 SLF4J 输出任务执行轨迹，禁止 System.out）
+        log.info("定时任务业务逻辑开始执行...... {}", new Date());
 
         List<TDicType> tDicTypeList = dicTypeService.loadAllDicData();
 

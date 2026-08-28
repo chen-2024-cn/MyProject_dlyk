@@ -13,6 +13,7 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Component
 public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
     @Resource
@@ -40,7 +42,10 @@ public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHand
         long ttl = Boolean.parseBoolean(rememberMe) ? Constants.EXPIRE_TIME : Constants.DEFAULT_EXPIRE_TIME;
         redisService.setValue(key, jwt, ttl, TimeUnit.SECONDS);
 
-        System.out.println("redis的key====="+ key + "=====设置的jwt为" + jwt);
+        // 安全提示：严禁将完整的 JWT 明文写入日志（等同于泄露登录凭证），
+        // 只记录 Redis Key 与 JWT 的摘要长度，便于排查单设备登录问题且不留存敏感值。
+        log.info("登录成功：用户[{}]，Redis Token Key：{}，JWT长度：{}，TTL：{} 秒，TTL类型：{}",
+                tUser.getLoginAct(), key, jwt.length(), ttl, Boolean.parseBoolean(rememberMe) ? "记住我" : "普通会话");
 
         // 3、清除登录失败和锁定缓存
         String failKey = Constants.REDIS_LOGIN_FAIL_KEY + tUser.getLoginAct();

@@ -217,6 +217,13 @@
         insert into t_user_role (user_id, role_id) values (#{userId}, #{roleId})
     </insert>
 
+    <!-- 仅更新最近登录时间：单列精准更新，避免整对象回写覆盖用户刚编辑的资料（JWT 快照脏数据问题的根源） -->
+    <update id="updateLastLoginTimeById" parameterType="java.lang.Integer">
+        update t_user
+        set last_login_time = NOW()
+        where id = #{id,jdbcType=INTEGER}
+    </update>
+
     <update id="updateByPrimaryKeySelective" parameterType="com.cyk.model.TUser">
         update t_user
         <set>

@@ -5,9 +5,11 @@ import com.cyk.model.TUser;
 import com.cyk.service.RedisService;
 import com.cyk.util.JWTUtils;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
+@Slf4j
 @SpringBootTest
 class ServerApplicationTests {
 
@@ -22,27 +24,26 @@ class ServerApplicationTests {
         String redisKey = Constants.REDIS_JWT_KEY + tUser.getId();
         Object redisValue = redisService.getValue(redisKey);
 
-        System.out.println("========== Redis数据类型诊断 ==========");
-        System.out.println("Redis Key: " + redisKey);
-        System.out.println("Redis Value是否为null: " + (redisValue == null));
+        // 企业级测试规范：测试输出同样使用 SLF4J 日志，禁止直接 System.out.println。
+        // 注意：Token 属于敏感凭证，诊断时只打印长度，不打印完整内容。
+        log.info("========== Redis数据类型诊断 ==========");
+        log.info("Redis Key: {}", redisKey);
+        log.info("Redis Value是否为null: {}", redisValue == null);
 
         if (redisValue != null) {
-            System.out.println("Redis Value的实际类型: " + redisValue.getClass().getName());
-            System.out.println("Redis Value的内容: " + redisValue);
-            System.out.println("是否是String类型: " + (redisValue instanceof String));
+            log.info("Redis Value的实际类型: {}", redisValue.getClass().getName());
+            log.info("是否是String类型: {}", redisValue instanceof String);
 
             if (redisValue instanceof String) {
-                System.out.println("✓ 数据类型正确,可以正常转换为String");
                 String redisToken = (String) redisValue;
-                System.out.println("转换后的Token长度: " + redisToken.length());
+                log.info("✓ 数据类型正确，可以正常转换为String，Token长度: {}", redisToken.length());
             } else {
-                System.out.println("✗ 数据类型错误!期望String,实际是: " + redisValue.getClass().getName());
-                System.out.println("这就是导致ClassCastException的原因!");
+                log.warn("✗ 数据类型错误! 期望String，实际是: {}，这就是导致ClassCastException的原因!", redisValue.getClass().getName());
             }
         } else {
-            System.out.println("Redis中没有找到该key对应的值");
+            log.warn("Redis中没有找到该key对应的值（token 可能已过期或环境未登录）");
         }
-        System.out.println("=====================================");
+        log.info("=====================================");
     }
 
 }

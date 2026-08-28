@@ -6,6 +6,7 @@ import com.cyk.model.TUser;
 import com.cyk.query.BaseQuery;
 import com.cyk.util.JWTUtils;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -18,6 +19,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 
+@Slf4j
 @Aspect
 @Component
 public class DataScopeAspect {
@@ -53,9 +55,11 @@ public class DataScopeAspect {
                 query.setFilterSQL(" and " + tableAlias + "." + tableField + "=" + tUser.getId()); //select * from t_user tu where tu.id = ... （普通用户）
             }
         }
-        System.out.println("目标方法执行之前");
+        Object methodArgs = point.getArgs()[0];
+        log.debug("数据权限切面：目标方法执行之前，用户ID：{}，过滤条件：{}",
+                tUser.getId(), (methodArgs instanceof BaseQuery q) ? q.getFilterSQL() : null);
         Object res = point.proceed();
-        System.out.println("目标方法执行之后");
+        log.debug("数据权限切面：目标方法执行之后");
         return res;
     }
 }
