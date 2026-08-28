@@ -4,6 +4,12 @@ import {getTokenName, messageFrame, removeToken} from "@/util/util.js";
 import {ElMessage, ElMessageBox} from "element-plus";
 
 axios.defaults.baseURL = "http://localhost:8089";
+
+// 业务码：账号已在其他设备登录，当前设备被顶下线（与后端 CodeEnum.TOKEN_IS_ELSEWHERE 对齐）
+const KICKED_CODE = 905;
+
+// 模块级弹窗锁：同一时刻多个请求同时收到 905 时，只允许弹出一个提示框
+let kickedAlertOpen = false;
 export function doGet(url, params) {
     return axios({
         method: "get",
@@ -93,8 +99,40 @@ axios.interceptors.response.use(function (response) {
     //TODO axios响应拦截器的控制台打印调试
     console.log('httpRequest.js: axios的响应拦截器' , response);
 
+    // 单设备登录互斥：收到 905 说明该账号已在其他设备登录，当前设备被顶下线。
+    // 与 901-904 区分开，给出明确的"已有人登录"提示并强制回到登录页。
+    // 踢下线瞬间往往有多个并发请求同时收到 905，用模块级锁保证弹窗只弹一个。
+    if (response.data.code === KICKED_CODE) {
+        //清除token
+        removeToken();
+        if (!kickedAlertOpen) {
+            kickedAlertOpen = true;
+            ElMessageBox.alert(
+                response.data.msg + "，当前设备已被迫退出，请重新登录。",
+                "账号异地登录",
+                {
+                    confirmButtonText: "重新登录",
+                    type: "error",
+                    showClose: false
+                }
+            ).finally(() => {
+                // 页面跳转会整体刷新模块状态，此处无需复位 kickedAlertOpen；
+                // 保持 true 可以确保跳转完成前，心跳等残余请求的 901/902... 错误不会叠加新弹窗
+                window.location.href = "/";
+            });
+        } else {
+            // 其余并发请求直接静默跳转即可
+            window.location.href = "/";
+        }
+        return Promise.reject(response);
+    }
+
     //拦截token验证结果，进行页面提示和跳转
     if(response.data.code > 900) {
+        // 905 异地登录弹窗尚未关闭（token 已被清除）时，心跳等残余请求返回的 901 等错误静默忽略，避免弹窗无限叠加
+        if (kickedAlertOpen) {
+            return Promise.reject(response);
+        }
         //token未通过
             messageFrame(response.data.msg+ "是否重新登录？")
                 .then(() => {//确认后

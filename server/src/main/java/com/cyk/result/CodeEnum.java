@@ -20,6 +20,9 @@ public enum CodeEnum {
 
     TOKEN_IS_NONE_MATCH(904, "请求Token不匹配"),
 
+    // 单设备登录互斥：同一账号在另一台设备重新登录，当前设备被顶下线
+    TOKEN_IS_ELSEWHERE(905, "您的账号已在其他设备登录"),
+
     USER_LOGOUT(200, "退出成功"),
 
     DATA_ACCESS_EXCEPTION(500,"数据库操作失败"),

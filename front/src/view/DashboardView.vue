@@ -112,7 +112,7 @@
 </template>
 
 <script setup>
-import {ref, onMounted, provide, nextTick} from 'vue'
+import {ref, onMounted, onUnmounted, provide, nextTick} from 'vue'
 import {useRoute, useRouter} from "vue-router";
 import {
   Document,
@@ -120,8 +120,44 @@ import {
   ArrowDown, ShoppingBag, User, OfficeBuilding, Compass, Management, Money
 } from '@element-plus/icons-vue'
 import {doGet} from "@/http/httpRequest.js";
-import {messageFrame, removeToken} from "@/util/util.js";
+import {getTokenName, messageFrame, removeToken} from "@/util/util.js";
 import {ElMessage} from "element-plus";
+
+/*------------单设备登录互斥：心跳轮询----------*/
+// 旧设备被顶下线后往往不会再发业务请求，靠心跳每 5 秒探测一次登录态：
+// /api/login/free 会经过后端 TokenVerifyFilter 校验 token，
+// 若账号已在其他设备重新登录，后端返回 905，由 axios 响应拦截器统一弹窗并强制回登录页
+const heartbeatTimer = ref(null)
+const startLoginHeartbeat = () => {
+  stopLoginHeartbeat()
+  heartbeatTimer.value = setInterval(async () => {
+    // 心跳前先检查本地 token 是否还在：
+    // 收到 905 后拦截器会立刻清除 token，若此时定时器仍在运行，
+    // 就会每 5 秒发出一次无 token 的请求，被后端返回 901「Token参数为空」并叠加弹框。
+    // 因此一旦 token 已不存在，直接停掉心跳，静默等待拦截器完成跳转。
+    const token = window.sessionStorage.getItem(getTokenName())
+        || window.localStorage.getItem(getTokenName());
+    if (!token) {
+      stopLoginHeartbeat();
+      return;
+    }
+    try {
+      await doGet("/api/login/free", {});
+    } catch (e) {
+      // 收到 905（被顶下线）等 900+ 拦截码时拦截器已弹出提示并会跳转，此处静默吞掉即可
+    }
+  }, 5000)
+}
+const stopLoginHeartbeat = () => {
+  if (heartbeatTimer.value) {
+    clearInterval(heartbeatTimer.value)
+    heartbeatTimer.value = null
+  }
+}
+// 组件卸载（比如跳转登录页前）时清理定时器，避免泄漏
+onUnmounted(() => {
+  stopLoginHeartbeat()
+})
 
 /*------------左侧----------*/
 // 控制侧边栏展开/收起状态
@@ -212,6 +248,9 @@ onMounted(() =>{
   loadLoginUser();
   loadSystemConfig(); // 此处异步拉取并 100% 同步执行 applyTheme 控制
 
+  // 启动单设备登录心跳检测（被顶下线时最迟 5 秒内感知）
+  startLoginHeartbeat()
+
   // 建立浏览器广播监听，在当前网页修改配置后即时动态重绘
   window.addEventListener('theme-change', (e) => {
     applyTheme(e.detail)
@@ -233,6 +272,7 @@ const loadLoginUser = async () => {
 
 //退出登录
 const logout =async () => {
+  stopLoginHeartbeat() // 主动退出时先停掉心跳轮询
   const res = await doGet("api/logout", {});
   if (res.data.code === 200) {
     ElMessage.success("退出成功！");

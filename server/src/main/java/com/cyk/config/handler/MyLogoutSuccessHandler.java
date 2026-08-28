@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 
@@ -35,8 +36,15 @@ public class MyLogoutSuccessHandler implements LogoutSuccessHandler {
         //退出成功，执行该方法，在该方法中返回json给前端，就行了
         TUser tUser = (TUser)authentication.getPrincipal();
 
-        //删除一下redis中用户的jwt
-        redisService.removeValue(Constants.REDIS_JWT_KEY + tUser.getId());
+        // 单设备登录互斥保护：只有"当前退出设备的token仍是Redis中的最新token"才清除登录态。
+        // 否则说明该账号已在其他设备重新登录（当前设备是被顶掉的旧设备），
+        // 若此处无条件删除，会把新设备的有效token误删，导致新登录的设备也被迫下线。
+        String key = Constants.REDIS_JWT_KEY + tUser.getId();
+        String currentToken = request.getHeader(Constants.TOKEN_NAME);
+        String redisToken = (String) redisService.getValue(key);
+        if (StringUtils.hasText(redisToken) && redisToken.equals(currentToken)) {
+            redisService.removeValue(key);
+        }
 
         //退出成功的统一结果
         R result = R.OK(CodeEnum.USER_LOGOUT);

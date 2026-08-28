@@ -99,8 +99,9 @@ public class TokenVerifyFilter extends OncePerRequestFilter {
             }
 
             if (!token.equals(redisToken)) {
-                //token验证未通过的统一结果
-                R result = R.FAIL(CodeEnum.TOKEN_IS_NONE_MATCH);
+                // 单设备登录互斥：JWT 签名合法，但已不是 Redis 中的最新 token，
+                // 说明该账号在其他设备重新登录过，当前设备被顶下线
+                R result = R.FAIL(CodeEnum.TOKEN_IS_ELSEWHERE);
 
                 //把R对象转成json
                 String resultJSON = JSONUtils.toJSON(result);
