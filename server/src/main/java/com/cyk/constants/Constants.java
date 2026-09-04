@@ -14,6 +14,10 @@ public class Constants {
     //redis中负责人的key
     public static final String REDIS_OWNER_KEY = "dlyk:user:owner";
 
+    // 负责人列表缓存的兜底过期时间（分钟）：即使有绕过应用的直连数据库修改（或漏删缓存），
+    // 缓存也会到期自动失效并由 Cache-Aside 回源重建，保证最终一致，而非永久脏数据
+    public static final Long REDIS_OWNER_KEY_EXPIRE_MINUTES = 10L;
+
     // 登录失败计数器的 Redis Key 前缀
     public static final String REDIS_LOGIN_FAIL_KEY = "dlyk:login:fail:";
 
@@ -62,5 +66,38 @@ public class Constants {
     public static final String EXPORT_EXCEL_URI = "/api/exportExcel";
 
     public static final String EXCEL_FILE_NAME = "客户信息数据";
+
+    // ------------------------------------------------------------------
+    // AI 领航员增值付费体系
+    // ------------------------------------------------------------------
+
+    /** 角色标识：系统管理员（决定 AI 助手挂载管理员工具包） */
+    public static final String ROLE_ADMIN = "admin";
+
+    /** 已开通的增值能力 Redis Key 前缀（完整 key = 前缀 + userId + ":" + abilityKey） */
+    public static final String REDIS_AI_PREMIUM_ABILITY_KEY = "dlyk:ai:premium:";
+
+    /** 未开通能力的负缓存 Key 后缀（防止缓存穿透：未付费请求不重复打库） */
+    public static final String REDIS_AI_PREMIUM_ABILITY_DENY_SUFFIX = ":deny";
+
+    /**
+     * 负缓存有效期（秒）。
+     * 取值权衡：太长会导致"刚付款用户短时间内仍被误拦"的体验窗口，
+     * 太短则防穿透效果差；60 秒是常见生产折中值（配合开通时主动清除负缓存，
+     * 实际新开通用户不会被误拦）。
+     */
+    public static final Long AI_PREMIUM_ABILITY_DENY_EXPIRE_SECONDS = 60L;
+
+    /** AI 增值能力开通记录的默认有效期（秒）：30 天 */
+    public static final Long AI_PREMIUM_ABILITY_EXPIRE_SECONDS = 30L * 24 * 60 * 60;
+
+    /** AI 支付订单流水号前缀 */
+    public static final String AI_PAYMENT_ORDER_NO_PREFIX = "AI";
+
+    /** AI 工具生成的 Excel 文件输出目录（相对工作目录，供文件下载端点读取） */
+    public static final String AI_EXPORT_DIR = "target/ai-export";
+
+    /** AI 批量导入用户时未提供密码的统一初始密码 */
+    public static final String AI_IMPORT_DEFAULT_PASSWORD = "Dlyk@2026";
 
 }

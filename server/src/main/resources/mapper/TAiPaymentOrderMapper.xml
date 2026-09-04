@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.cyk.mapper.TAiPaymentOrderMapper">
+  <resultMap id="BaseResultMap" type="com.cyk.model.TAiPaymentOrder">
+    <id column="id" jdbcType="BIGINT" property="id" />
+    <result column="order_no" jdbcType="VARCHAR" property="orderNo" />
+    <result column="user_id" jdbcType="INTEGER" property="userId" />
+    <result column="ability_key" jdbcType="VARCHAR" property="abilityKey" />
+    <result column="ability_name" jdbcType="VARCHAR" property="abilityName" />
+    <result column="price" jdbcType="DECIMAL" property="price" />
+    <result column="status" jdbcType="TINYINT" property="status" />
+    <result column="paid_time" jdbcType="TIMESTAMP" property="paidTime" />
+    <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
+    <result column="remark" jdbcType="VARCHAR" property="remark" />
+  </resultMap>
+
+  <sql id="Base_Column_List">
+    id, order_no, user_id, ability_key, ability_name, price, status, paid_time, create_time, remark
+  </sql>
+
+  <select id="selectByPrimaryKey" parameterType="java.lang.Long" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_ai_payment_order
+    where id = #{id,jdbcType=BIGINT}
+  </select>
+
+  <select id="selectByOrderNo" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_ai_payment_order
+    where order_no = #{orderNo,jdbcType=VARCHAR}
+  </select>
+
+  <select id="selectByUserId" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />
+    from t_ai_payment_order
+    where user_id = #{userId,jdbcType=INTEGER}
+    order by create_time desc
+    limit 50
+  </select>
+
+  <!-- 付费墙点查：走 idx_user_ability(user_id, ability_key) 索引范围扫描，
+       避免先全量拉订单再内存过滤；status=1 为已支付（对应 Java 侧 STATUS_PAID 常量，
+       此处硬编码因 DB 层无状态机常量可复用，已与 mapper 接口注释对齐） -->
+  <select id="countPaidByUserAndAbility" resultType="int">
+    select count(1)
+    from t_ai_payment_order
+    where user_id = #{userId,jdbcType=INTEGER}
+      and ability_key = #{abilityKey,jdbcType=VARCHAR}
+      and status = 1
+  </select>
+
+  <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TAiPaymentOrder" useGeneratedKeys="true">
+    insert into t_ai_payment_order
+    <trim prefix="(" suffix=")" suffixOverrides=",">
+      <if test="orderNo != null">
+        order_no,
+      </if>
+      <if test="userId != null">
+        user_id,
+      </if>
+      <if test="abilityKey != null">
+        ability_key,
+      </if>
+      <if test="abilityName != null">
+        ability_name,
+      </if>
+      <if test="price != null">
+        price,
+      </if>
+      <if test="status != null">
+        status,
+      </if>
+      <if test="paidTime != null">
+        paid_time,
+      </if>
+      <if test="createTime != null">
+        create_time,
+      </if>
+      <if test="remark != null">
+        remark,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides=",">
+      <if test="orderNo != null">
+        #{orderNo,jdbcType=VARCHAR},
+      </if>
+      <if test="userId != null">
+        #{userId,jdbcType=INTEGER},
+      </if>
+      <if test="abilityKey != null">
+        #{abilityKey,jdbcType=VARCHAR},
+      </if>
+      <if test="abilityName != null">
+        #{abilityName,jdbcType=VARCHAR},
+      </if>
+      <if test="price != null">
+        #{price,jdbcType=DECIMAL},
+      </if>
+      <if test="status != null">
+        #{status,jdbcType=TINYINT},
+      </if>
+      <if test="paidTime != null">
+        #{paidTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="createTime != null">
+        #{createTime,jdbcType=TIMESTAMP},
+      </if>
+      <if test="remark != null">
+        #{remark,jdbcType=VARCHAR},
+      </if>
+    </trim>
+  </insert>
+
+  <!-- 状态机单向推进（乐观锁）：WHERE 条件锁定期望状态，杜绝 已支付->取消 等非法回退与并发双花 -->
+  <update id="transitStatus">
+    update t_ai_payment_order
+    <set>
+      status = #{targetStatus,jdbcType=TINYINT},
+      <if test="targetStatus == 1">
+        paid_time = NOW(),
+      </if>
+    </set>
+    where order_no = #{orderNo,jdbcType=VARCHAR}
+      and status = #{expectStatus,jdbcType=TINYINT}
+  </update>
+</mapper>

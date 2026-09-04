@@ -273,4 +273,75 @@
     GROUP BY DATE_FORMAT(create_time, '%Y-%m')
     ORDER BY name
   </select>
+
+  <!-- AI 工具：负责人名下最近订单（数据范围由调用方强制传入登录人 ID，防越权） -->
+  <select id="selectRecentByCreateBy" resultMap="TranResultMap">
+    select
+      tt.*,
+      tdv.id stageId, tdv.type_value stageName,
+      tc2.full_name as customerName
+    from t_tran tt
+    left join t_dic_value tdv on tt.stage = tdv.id
+    left join t_customer tcu on tt.customer_id = tcu.id
+    left join t_clue tc2 on tcu.clue_id = tc2.id
+    <where>
+      tt.create_by = #{createBy,jdbcType=INTEGER}
+      <if test="stage != null">
+        and tt.stage = #{stage,jdbcType=INTEGER}
+      </if>
+    </where>
+    order by tt.create_time desc
+    limit #{limit}
+  </select>
+
+  <!-- AI 工具：负责人在截止时间前需要跟进联系的交易（排除已成交的终态订单） -->
+  <select id="selectUpcomingFollowUp" resultMap="TranResultMap">
+    select
+      tt.*,
+      tdv.id stageId, tdv.type_value stageName,
+      tc2.full_name as customerName
+    from t_tran tt
+    left join t_dic_value tdv on tt.stage = tdv.id
+    left join t_customer tcu on tt.customer_id = tcu.id
+    left join t_clue tc2 on tcu.clue_id = tc2.id
+    where tt.create_by = #{createBy,jdbcType=INTEGER}
+      and tt.next_contact_time is not null
+      and tt.next_contact_time &lt;= #{deadline,jdbcType=TIMESTAMP}
+      and tt.stage != 42
+    order by tt.next_contact_time asc
+    limit #{limit}
+  </select>
+
+  <!-- AI 管理员工具：全局订单条件查询（客户姓名模糊/阶段精确），仅限管理员工具调用 -->
+  <select id="selectGlobalByCondition" resultMap="TranResultMap">
+    select
+      tt.*,
+      tdv.id stageId, tdv.type_value stageName,
+      tu.id createById, tu.name createByName,
+      tc2.full_name as customerName
+    from t_tran tt
+    left join t_dic_value tdv on tt.stage = tdv.id
+    left join t_user tu on tt.create_by = tu.id
+    left join t_customer tcu on tt.customer_id = tcu.id
+    left join t_clue tc2 on tcu.clue_id = tc2.id
+    <where>
+      <if test="customerName != null and customerName != ''">
+        and tc2.full_name like concat('%', #{customerName,jdbcType=VARCHAR}, '%')
+      </if>
+      <if test="stage != null">
+        and tt.stage = #{stage,jdbcType=INTEGER}
+      </if>
+    </where>
+    order by tt.create_time desc
+    limit #{limit}
+  </select>
+
+  <!-- AI 付费能力（用户视角）：按负责人统计本人每月的交易金额走势 -->
+  <select id="selectTranAmountByMonthByCreateBy" resultType="com.cyk.result.TrendPoint">
+    SELECT DATE_FORMAT(create_time, '%Y-%m') AS name, SUM(money) AS value
+    FROM t_tran
+    WHERE create_by = #{createBy,jdbcType=INTEGER}
+    GROUP BY DATE_FORMAT(create_time, '%Y-%m')
+    ORDER BY name
+  </select>
 </mapper>

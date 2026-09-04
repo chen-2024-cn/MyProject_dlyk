@@ -94,6 +94,10 @@ const router = createRouter({
                 {
                     path:'profile',
                     component:() => import('../view/UserProfileView.vue'),
+                },
+                {
+                    path:'ai',
+                    component:() => import('../view/AiAssistantView.vue'),
                 }
             ]
         }

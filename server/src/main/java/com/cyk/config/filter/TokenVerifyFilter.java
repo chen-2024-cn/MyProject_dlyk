@@ -50,8 +50,11 @@ public class TokenVerifyFilter extends OncePerRequestFilter {
 
         } else {
             String token = null;
-            if (request.getRequestURI().equals(Constants.EXPORT_EXCEL_URI)) {
-                //从请求路径的参数中获取token
+            if (request.getRequestURI().equals(Constants.EXPORT_EXCEL_URI)
+                    || request.getRequestURI().equals("/api/ai/stream-chat")
+                    || request.getRequestURI().equals("/api/ai/file/download")) {
+                // 文件下载场景（浏览器直接访问链接）无法自定义请求头，token 经 URL 参数传递
+                //（与 exportExcel 同一约定，接口本身仍受角色鉴权约束）
                 token = request.getParameter("Authorization");
             } else {
                 //其他请求都是从请求头中获取token

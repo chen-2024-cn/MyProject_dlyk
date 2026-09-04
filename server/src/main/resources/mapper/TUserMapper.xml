@@ -92,6 +92,14 @@
         from t_user
     </select>
 
+    <!-- AI 管理员工具专用：全量用户列表（仅经管理员角色硬校验后触达） -->
+    <select id="selectAllUsers" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from t_user
+        order by id
+    </select>
+
     <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
         delete
         from t_user

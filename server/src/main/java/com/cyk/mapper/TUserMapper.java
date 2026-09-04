@@ -40,4 +40,12 @@ public interface TUserMapper {
     List<TUser> selectByOwner();
 
     int insertRole(TUserRole userRole);
+
+    /**
+     * AI 管理员工具专用：全量用户列表（导出 Excel 用）。
+     * 不加 @DataScope：该查询发生在 AI 工具异步线程（无 HTTP 请求上下文），
+     * 数据权限切面依赖 RequestContextHolder，工具线程调用会 NPE；
+     * 调用入口已通过「管理员角色」硬校验限定只有 admin 能触达。
+     */
+    List<TUser> selectAllUsers();
 }

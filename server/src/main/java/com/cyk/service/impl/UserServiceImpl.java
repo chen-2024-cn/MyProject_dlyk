@@ -134,6 +134,9 @@ public class UserServiceImpl implements UserService {
         int rows = tUserMapper.insertSelective(tUser);
         // 注册仅创建账号，不自动绑定任何业务角色（角色由管理员审核后在用户管理页面分配），
         // 避免匿名用户注册即获得线索录入、客户导出等业务权限
+        if (rows == 1) {
+            evictOwnerCache(); // 用户集合变更 → 失效负责人下拉缓存，避免前端看到旧名单
+        }
         return rows;
     }
 
@@ -263,6 +266,7 @@ public class UserServiceImpl implements UserService {
         //新增用户时由管理员显式分配角色（注册接口不自动绑定任何业务角色）
         if (rows == 1 && tUser.getId() != null) {
             assignRoles(tUser.getId(), userQuery.getRoleIds());
+            evictOwnerCache(); // 新增用户 → 负责人下拉列表需要立即感知新成员
         }
         return rows;
     }
@@ -297,7 +301,11 @@ public class UserServiceImpl implements UserService {
             redisService.delete(Constants.REDIS_LOGIN_FAIL_KEY + u.getLoginAct());
             redisService.delete(Constants.REDIS_LOGIN_LOCK_KEY + u.getLoginAct());
         }
-        return tUserMapper.deleteByPrimaryKey(id);
+        int rows = tUserMapper.deleteByPrimaryKey(id);
+        if (rows == 1) {
+            evictOwnerCache(); // 用户被删除 → 负责人下拉列表不能再出现此人
+        }
+        return rows;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -319,6 +327,9 @@ public class UserServiceImpl implements UserService {
         if (i >= 1 && userQuery.getRoleIds() != null) {
             assignRoles(tUser.getId(), userQuery.getRoleIds());
         }
+        if (i >= 1) {
+            evictOwnerCache(); // 用户信息可能被改名 → 负责人下拉列表需同步刷新
+        }
         return i;
     }
 
@@ -333,7 +344,11 @@ public class UserServiceImpl implements UserService {
                 redisService.delete(Constants.REDIS_JWT_KEY + idObj);
             }
         }
-        return tUserMapper.deleteByIds(ids);
+        int rows = tUserMapper.deleteByIds(ids);
+        if (rows > 0) {
+            evictOwnerCache(); // 批量删除用户 → 负责人下拉列表同步失效
+        }
+        return rows;
     }
 
     @Override
@@ -347,9 +362,18 @@ public class UserServiceImpl implements UserService {
             //生产，从数据库查询
             return (List<TUser>)tUserMapper.selectByOwner();
         }, (t) -> {
-            //消费，把数据放入redis
-            redisManager.setValue(Constants.REDIS_OWNER_KEY, t);
+            //消费，把数据放入redis（带 TTL 兜底：即使有人绕过应用直改数据库，缓存也会到期自愈）
+            redisManager.setValue(Constants.REDIS_OWNER_KEY, t,
+                    Constants.REDIS_OWNER_KEY_EXPIRE_MINUTES, TimeUnit.MINUTES);
         });
+    }
+
+    /**
+     * 失效"负责人下拉"缓存：负责人列表是用户表的整体快照，任何用户增/删/改名都无法局部更新，
+     * 只能整体删除，后续查询走 Cache-Aside 回源重建（写库成功 → 删缓存）。
+     */
+    private void evictOwnerCache() {
+        redisService.delete(Constants.REDIS_OWNER_KEY);
     }
 
     @Override
@@ -399,7 +423,79 @@ public class UserServiceImpl implements UserService {
     @Override
     public int updateProfile(TUser user) {
         user.setEditTime(new Date());
-        return tUserMapper.updateByPrimaryKeySelective(user);
+        int rows = tUserMapper.updateByPrimaryKeySelective(user);
+        if (rows == 1) {
+            evictOwnerCache(); // 个人中心可能改姓名 → 负责人下拉列表同步刷新（这正是"数据库改了、页面下拉还是旧名字"的典型场景）
+        }
+        return rows;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int aiImportUsers(List<com.cyk.result.ai.UserImportRow> rows, Integer operatorId) {
+        int imported = 0;
+        for (com.cyk.result.ai.UserImportRow row : rows) {
+            if (row.getLoginAct() == null || row.getLoginAct().isBlank()) {
+                continue; // 必填项缺失的行静默跳过
+            }
+            String loginAct = row.getLoginAct().trim();
+            // 账号已存在则跳过（幂等导入）
+            if (tUserMapper.selectByLoginAct(loginAct) != null) {
+                continue;
+            }
+            TUser tUser = new TUser();
+            tUser.setLoginAct(loginAct);
+            tUser.setLoginPwd(passwordEncoder.encode(
+                    (row.getLoginPwd() == null || row.getLoginPwd().isBlank())
+                            ? Constants.AI_IMPORT_DEFAULT_PASSWORD
+                            : row.getLoginPwd().trim()));
+            tUser.setName(row.getName());
+            tUser.setPhone(row.getPhone());
+            tUser.setEmail(row.getEmail());
+            tUser.setAccountNoExpired(1);
+            tUser.setCredentialsNoExpired(1);
+            tUser.setAccountNoLocked(1);
+            tUser.setAccountEnabled(1);
+            tUser.setCreateBy(operatorId);
+            tUser.setCreateTime(new Date());
+            imported += tUserMapper.insertSelective(tUser);
+        }
+        if (imported > 0) {
+            evictOwnerCache(); // AI 批量导入新用户 → 负责人下拉列表需感知
+        }
+        log.info("AI 批量导入用户完成 | operator={}, imported={}", operatorId, imported);
+        return imported;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public R aiUpdateUserRolesAndStatus(Integer targetUserId, Integer accountEnabled,
+                                        List<Integer> roleIds, Integer operatorId) {
+        TUser target = tUserMapper.selectByPrimaryKey(targetUserId);
+        if (target == null) {
+            return R.FAIL("目标用户不存在，请确认用户ID。");
+        }
+        TUser update = new TUser();
+        update.setId(targetUserId);
+        if (accountEnabled != null) {
+            update.setAccountEnabled(accountEnabled);
+        }
+        update.setEditBy(operatorId);
+        update.setEditTime(new Date());
+        tUserMapper.updateByPrimaryKeySelective(update);
+
+        // 角色变更：复用内部事务逻辑（先删旧绑定再批量写入）
+        if (roleIds != null) {
+            assignRoles(targetUserId, roleIds);
+        }
+
+        // 禁用账号 → 立即清理登录 token，强制下线（安全闭环）
+        if (accountEnabled != null && accountEnabled == 0) {
+            redisService.delete(Constants.REDIS_JWT_KEY + targetUserId);
+        }
+        log.info("AI 更新用户权限完成 | operator={}, target={}, enabled={}, roleIds={}",
+                operatorId, targetUserId, accountEnabled, roleIds);
+        return R.OK();
     }
 
     @Override

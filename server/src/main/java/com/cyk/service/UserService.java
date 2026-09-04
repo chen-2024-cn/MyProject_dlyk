@@ -49,6 +49,28 @@ public interface UserService extends UserDetailsService {
     int register(UserQuery userQuery);
 
     /**
+     * AI 管理员工具 · 批量导入用户（登录账号已存在则跳过）。
+     * 调用入口由管理员工具包限定，仅 admin 角色可达。
+     *
+     * @param rows       解析后的导入行
+     * @param operatorId 操作管理员用户ID
+     * @return 实际导入成功条数
+     */
+    int aiImportUsers(java.util.List<com.cyk.result.ai.UserImportRow> rows, Integer operatorId);
+
+    /**
+     * AI 管理员工具 · 更新用户启停状态并重新分配角色（事务保障）。
+     * 账号被禁用时同步清理其登录 token，强制立即下线。
+     *
+     * @param targetUserId   被操作的用户ID
+     * @param accountEnabled 启用状态（1启用 0禁用），null 表示不修改
+     * @param roleIds        新的角色ID列表，null 表示不修改角色
+     * @param operatorId     操作管理员用户ID
+     */
+    R aiUpdateUserRolesAndStatus(Integer targetUserId, Integer accountEnabled,
+                                 java.util.List<Integer> roleIds, Integer operatorId);
+
+    /**
      * 业务层核心逻辑：生成并下发密码重载核验验证码 (内置账户邮箱关联、单账号防刷限流、降级演示打印)
      */
     R generateResetCode(String loginAct, String email);

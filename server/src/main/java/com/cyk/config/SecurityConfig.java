@@ -59,7 +59,14 @@ public class SecurityConfig {
                             .failureHandler(myAuthenticationFailureHandler);
                 })
                 .authorizeHttpRequests((authorize) -> {
-                    authorize.requestMatchers("/api/login",
+                    authorize
+                            // SSE 流式接口为异步请求：Tomcat 在流结束/超时后会做一次 ASYNC/ERROR 派发，
+                            // 此时请求线程上的 SecurityContext 已被清空，若不放行会抛 Access Denied。
+                            // 该派发仅是同一请求的收尾动作，不涉及新的业务鉴权，放行是 Spring Security 官方方案
+                            // （6.1+ 提供 dispatcherTypeMatchers 专用方法）。
+                            .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC,
+                                    jakarta.servlet.DispatcherType.ERROR).permitAll()
+                            .requestMatchers("/api/login",
                                     "/api/register",
                                     "/api/password/reset/code",
                                     "/api/password/reset",

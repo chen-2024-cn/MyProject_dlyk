@@ -51,8 +51,11 @@
 
         </el-sub-menu>
 
-
-
+        <!-- AI 列车长常驻入口 -->
+        <el-menu-item index="/dashboard/ai" class="train-ai-item">
+          <el-icon><Cpu /></el-icon>
+          <template #title>AI 列车长</template>
+        </el-menu-item>
 
       </el-menu>
 
@@ -117,7 +120,7 @@ import {useRoute, useRouter} from "vue-router";
 import {
   Document,
   Setting,
-  ArrowDown, ShoppingBag, User, OfficeBuilding, Compass, Management, Money
+  ArrowDown, ShoppingBag, User, OfficeBuilding, Compass, Management, Money, Cpu
 } from '@element-plus/icons-vue'
 import {doGet} from "@/http/httpRequest.js";
 import {getTokenName, messageFrame, removeToken} from "@/util/util.js";
@@ -715,6 +718,24 @@ provide('reload', reload);//生产者
 }
 .theme-cyberpunk .greeting-desc {
   color: #9ca3af !important;
+}
+
+/* AI 列车长常驻菜单 - 与侧边栏森林墨绿主题保持一致，避免花哨破坏整体感 */
+.train-ai-item {
+  margin: 4px 12px !important;
+  border-radius: 8px !important;
+  transition: all 0.25s ease !important;
+}
+.sidebar :deep(.train-ai-item .el-icon) {
+  color: #8fce9f !important;
+}
+.sidebar :deep(.train-ai-item:hover) {
+  background-color: rgba(82, 183, 136, 0.12) !important;
+}
+.sidebar :deep(.train-ai-item.is-active) {
+  background: linear-gradient(90deg, #2d6a4f 0%, #112d1b 100%) !important;
+  color: #ffffff !important;
+  font-weight: 600;
 }
 </style>
 
