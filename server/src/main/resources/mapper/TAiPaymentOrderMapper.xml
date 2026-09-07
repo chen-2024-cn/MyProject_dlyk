@@ -10,12 +10,13 @@
     <result column="price" jdbcType="DECIMAL" property="price" />
     <result column="status" jdbcType="TINYINT" property="status" />
     <result column="paid_time" jdbcType="TIMESTAMP" property="paidTime" />
+    <result column="expire_time" jdbcType="TIMESTAMP" property="expireTime" />
     <result column="create_time" jdbcType="TIMESTAMP" property="createTime" />
     <result column="remark" jdbcType="VARCHAR" property="remark" />
   </resultMap>
 
   <sql id="Base_Column_List">
-    id, order_no, user_id, ability_key, ability_name, price, status, paid_time, create_time, remark
+    id, order_no, user_id, ability_key, ability_name, price, status, paid_time, expire_time, create_time, remark
   </sql>
 
   <select id="selectByPrimaryKey" parameterType="java.lang.Long" resultMap="BaseResultMap">
@@ -41,15 +42,27 @@
     limit 50
   </select>
 
-  <!-- 付费墙点查：走 idx_user_ability(user_id, ability_key) 索引范围扫描，
-       避免先全量拉订单再内存过滤；status=1 为已支付（对应 Java 侧 STATUS_PAID 常量，
-       此处硬编码因 DB 层无状态机常量可复用，已与 mapper 接口注释对齐） -->
-  <select id="countPaidByUserAndAbility" resultType="int">
-    select count(1)
+  <!-- 付费墙点查（有效期唯一事实来源）：取「已支付(status=1)且未过期」订单的最大到期时间。
+       走 idx_user_ability(user_id, ability_key) 索引，替代全量拉取+内存过滤；
+       多次购买续费叠加时 MAX 自然取最晚到期者；全部过期时返回 NULL（等价于未开通）。
+       expire_time 由 transitStatus 在支付推进时写入（paid_time + 30 天），
+       30 天与 Constants.AI_PREMIUM_ABILITY_EXPIRE_SECONDS(30*24*3600秒) 对齐 -->
+  <select id="selectMaxExpireTimeOfPaid" resultType="java.util.Date">
+    select max(expire_time)
     from t_ai_payment_order
     where user_id = #{userId,jdbcType=INTEGER}
       and ability_key = #{abilityKey,jdbcType=VARCHAR}
       and status = 1
+      and expire_time &gt; NOW()
+  </select>
+
+  <!-- 对账任务专用：近期有订单行为的去重用户（缓存 key 空间的推导来源，限量防大结果集） -->
+  <select id="selectActiveUserIds" resultType="java.lang.Integer">
+    select user_id
+    from t_ai_payment_order
+    group by user_id
+    order by max(create_time) desc
+    limit 200
   </select>
 
   <insert id="insertSelective" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TAiPaymentOrder" useGeneratedKeys="true">
@@ -114,13 +127,16 @@
     </trim>
   </insert>
 
-  <!-- 状态机单向推进（乐观锁）：WHERE 条件锁定期望状态，杜绝 已支付->取消 等非法回退与并发双花 -->
+  <!-- 状态机单向推进（乐观锁）：WHERE 条件锁定期望状态，杜绝 已支付->取消 等非法回退与并发双花。
+       推进至已支付时同批写入 paid_time 与 expire_time（有效期 30 天），
+       保证 DB 自身即付费有效期的唯一事实来源，不依赖 Redis TTL 表达业务到期 -->
   <update id="transitStatus">
     update t_ai_payment_order
     <set>
       status = #{targetStatus,jdbcType=TINYINT},
       <if test="targetStatus == 1">
         paid_time = NOW(),
+        expire_time = DATE_ADD(NOW(), INTERVAL 30 DAY),
       </if>
     </set>
     where order_no = #{orderNo,jdbcType=VARCHAR}

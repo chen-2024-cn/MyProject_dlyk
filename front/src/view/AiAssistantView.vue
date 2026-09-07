@@ -224,6 +224,8 @@ const userInput = ref('')
 const loading = ref(false)
 const messages = ref([])
 const chatBodyRef = ref(null)
+// 会话 ID 兜底：profile 加载成功后会替换为 'AI-BIZ-{userId}' 的确定性 ID，
+// 保证同一账号切换模块再回来时延续同一上下文记忆与历史记录
 const threadMemoryId = ref('AI-BIZ-' + Math.random().toString(36).substring(2, 11).toUpperCase())
 const currentSse = ref(null)
 
@@ -238,9 +240,38 @@ const loadProfile = async () => {
     const r = await doGet('/api/ai/profile', {})
     if (r.data?.code === 200) {
       profile.value = r.data.data
+      // 确定性会话 ID：同一账号多次进入 AI 模块复用同一上下文（记忆/附件暂存延续）
+      if (profile.value.userId) {
+        threadMemoryId.value = 'AI-BIZ-' + profile.value.userId
+      }
+      await loadHistory()
     }
   } catch (e) {
     console.error('加载 AI 角色画像失败', e)
+  }
+}
+
+/**
+ * 恢复聊天记录（服务端 Redis 持久化）：
+ * 登录态内切换模块/刷新页面/关浏览器再打开均完整恢复；退出登录后永久清除。
+ * 注意：付费开通卡片/文件下载按钮等瞬时交互事件不恢复（产品已确认取舍）。
+ */
+const loadHistory = async () => {
+  try {
+    const r = await doGet('/api/ai/history', {})
+    if (r.data?.code === 200 && Array.isArray(r.data.data)) {
+      messages.value = r.data.data.map(item => ({
+        role: item.role === 'user' ? 'user' : 'ai',
+        content: item.content || '',
+        time: item.time || '',
+        streaming: false,
+        events: []
+      }))
+      await nextTick()
+      scrollToBottom()
+    }
+  } catch (e) {
+    console.error('恢复 AI 聊天记录失败', e)
   }
 }
 

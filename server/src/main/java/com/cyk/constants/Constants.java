@@ -94,6 +94,12 @@ public class Constants {
     /** AI 支付订单流水号前缀 */
     public static final String AI_PAYMENT_ORDER_NO_PREFIX = "AI";
 
+    /** AI 聊天记录 Redis Key 前缀（完整 key = 前缀 + userId，登录态内保留，登出即删） */
+    public static final String REDIS_AI_CHAT_HISTORY_KEY = "dlyk:ai:chat_history:";
+
+    /** AI 聊天记录保留条数上限（超出后滚动丢弃最早的消息，防单 key 膨胀） */
+    public static final int AI_CHAT_HISTORY_MAX_SIZE = 100;
+
     /** AI 工具生成的 Excel 文件输出目录（相对工作目录，供文件下载端点读取） */
     public static final String AI_EXPORT_DIR = "target/ai-export";
 

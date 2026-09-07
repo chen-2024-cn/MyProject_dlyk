@@ -32,21 +32,16 @@ spring:
   jackson:
     time-zone: GMT+8
     date-format: yyyy-MM-dd HH:mm:ss
-    #spring AI
-  ai:
-    openai:
-      api-key: 后续准备接入 ai
-      base-url: https://api.deepseek.com
-      chat:
-        options:
-          model: deepseek-chat
-          temperature: 0.7
 
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
   configuration:
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  level:
+    org.apache.ibatis: INFO
 
 # JWT验证安全密钥配置
 jwt:
@@ -55,8 +50,8 @@ jwt:
 # LangChain4j custom properties
 ai:
   chat:
-    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    api-key: sk-13e16664d4f740e0a41e87fd06dfa8fa  # 默认极客测试 Key
+    base-url: https://ws-x0twjnq8ovd2ycdr.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
+    api-key: ${AI_API_KEY:}  # 默认极客测试 Key
     model-name: qwen3.7-max-2026-06-08
 
 #定时任务的调度时间
@@ -64,4 +59,7 @@ project:
   task:
     cron: '*/3 * * * * *'
     delay: 180000
+    # AI 付费墙缓存对账周期（毫秒，默认 5 分钟）：
+    # 周期性将 Redis 开通标记与数据库真相比对收敛，覆盖"绕过应用直改数据库"场景
+    ai-reconcile-delay: 300000
 

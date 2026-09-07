@@ -65,6 +65,14 @@ public class TAiPaymentOrder implements Serializable {
     private Date paidTime;
 
     /**
+     * 能力到期时间（= 支付完成时间 + 30 天；待支付/已取消订单为 NULL）。
+     * 付费有效期的唯一事实来源：付费墙判定条件为 status=已支付 AND expire_time > NOW()；
+     * Redis 正缓存 TTL 与本字段剩余时长动态对齐，到期后需重新下单续费激活。
+     * ⚠ 绕过应用手工改单时必须同步维护本字段，否则按无有效开通处理。
+     */
+    private Date expireTime;
+
+    /**
      * 下单时间
      */
     private Date createTime;

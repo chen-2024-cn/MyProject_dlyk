@@ -25,6 +25,13 @@ public class RedisServiceImpl implements RedisService {
     }
 
     @Override
+    public Boolean setValueIfAbsent(String key, String value, Long timeout, TimeUnit unit) {
+        // 条件式原子写入：底层对应 SET key value NX EX timeout，仅 key 不存在时写入
+        // 并发回填场景下互不覆盖对方的最新结果（缓存竞态防护）
+        return redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit);
+    }
+
+    @Override
     public Object getValue(String key) {
         return redisTemplate.opsForValue().get(key);
     }
@@ -54,5 +61,10 @@ public class RedisServiceImpl implements RedisService {
         return redisTemplate.hasKey(key);
     }
 
+    @Override
+    public Long getExpireSeconds(String key) {
+        // -2：key 不存在；-1：存在但未设置过期（对账任务据此识别异常 key 并重新对齐 TTL）
+        return redisTemplate.getExpire(key, TimeUnit.SECONDS);
+    }
 
 }

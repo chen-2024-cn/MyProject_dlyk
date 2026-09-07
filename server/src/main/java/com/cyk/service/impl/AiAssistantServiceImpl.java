@@ -5,11 +5,14 @@ import com.cyk.mapper.TRoleMapper;
 import com.cyk.mapper.TTranMapper;
 import com.cyk.mapper.TUserMapper;
 import com.cyk.model.TUser;
+import com.cyk.config.AiPromptProvider;
 import com.cyk.constants.Constants;
 import com.cyk.result.ai.AiAbility;
 import com.cyk.result.ai.AiAbilityVO;
+import com.cyk.result.ai.AiChatHistoryItem;
 import com.cyk.result.ai.AiRoleProfile;
 import com.cyk.service.AiAssistantService;
+import com.cyk.service.AiChatHistoryService;
 import com.cyk.service.AiPremiumAbilityService;
 import com.cyk.service.AiRoleResolverService;
 import com.cyk.service.RedisService;
@@ -35,6 +38,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -82,6 +86,12 @@ public class AiAssistantServiceImpl implements AiAssistantService {
     @Resource
     private StatisticService statisticService;
 
+    @Resource
+    private AiChatHistoryService aiChatHistoryService;
+@Resource
+    private AiPromptProvider promptProvider;
+
+    
     /** 会话记忆仓库：key = userId:memoryId（用户级隔离，防跨用户读写记忆） */
     private final ConcurrentHashMap<String, dev.langchain4j.memory.ChatMemory> memoryCache = new ConcurrentHashMap<>();
 
@@ -140,17 +150,49 @@ public class AiAssistantServiceImpl implements AiAssistantService {
         //    避免与上一轮"等待确认"的语境冲突，附件说明降级为中性提示
         String augmentedMessage = buildAugmentedMessage(user.getName(), isAdmin, message, attachment, attachmentCarriedOver);
 
-        // 6. 合并「模型 token 流」与「工具事件流」。
+        // 6. 落存用户消息：登录态内聊天记录持久化，切换模块/刷新后可完整恢复
+        aiChatHistoryService.appendHistory(userId,
+                AiChatHistoryItem.builder().role("user").content(message).time(currentTime()).build());
+
+        // 7. 合并「模型 token 流」与「工具事件流」。
         //    终结顺序关键点：merge 需所有源都完成才会结束，而事件 Sink 不会自己完成，
         //    因此必须在模型流终结时用 doFinally 主动关闭 Sink，否则 SSE 永不结束。
+        //    历史落存只聚合模型 token（事件帧走独立 Sink，天然不会污染历史正文）。
+        StringBuilder replyBuffer = new StringBuilder();
         Flux<String> modelStream = agent.chat(memKey, augmentedMessage)
+                .doOnNext(replyBuffer::append)
+                // 仅在模型流正常完成时落存；错误场景由下方 onErrorResume 兜底，避免重复落存
+                .doOnComplete(() -> persistAiReply(userId, replyBuffer.toString()))
                 .doFinally(signal -> eventSink.tryEmitComplete());
         return Flux.merge(modelStream, eventSink.asFlux())
                 .onErrorResume(error -> {
                     log.error("AI 流式对话报错 | userId={}", userId, error);
                     eventSink.tryEmitComplete();
-                    return Flux.just("\n\n抱歉，本次服务出现异常：" + error.getMessage() + "。请稍后重试或检查后端大模型配置。");
+                    String fallback = "\n\n抱歉，本次服务出现异常：" + error.getMessage() + "。请稍后重试或检查后端大模型配置。";
+                    persistAiReply(userId, fallback);
+                    return Flux.just(fallback);
                 });
+    }
+
+    @Override
+    public List<AiChatHistoryItem> history(Integer userId) {
+        return aiChatHistoryService.listHistory(userId);
+    }
+
+    /**
+     * 落存 AI 回复：空内容（如客户端中途断连、模型无输出）不落存，避免历史出现空气泡。
+     */
+    private void persistAiReply(Integer userId, String reply) {
+        if (reply == null || reply.isBlank()) {
+            return;
+        }
+        aiChatHistoryService.appendHistory(userId,
+                AiChatHistoryItem.builder().role("ai").content(reply).time(currentTime()).build());
+    }
+
+    /** 当前时刻的展示时间，与前端气泡时间格式保持一致（HH:mm:ss） */
+    private String currentTime() {
+        return new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
     }
 
     @Override
@@ -162,6 +204,8 @@ public class AiAssistantServiceImpl implements AiAssistantService {
         }
         // 会话级附件暂存与记忆同生命周期，重置会话时一并清除
         sessionAttachmentCache.remove(memKey);
+        // 聊天记录与上下文记忆同步清空（产品语义：「清空对话记忆」= 重新开始一段全新会话）
+        aiChatHistoryService.clearHistory(userId);
         log.info("AI 会话记忆已重置 | userId={}, memoryId={}", userId, memoryId);
     }
 
@@ -186,6 +230,7 @@ public class AiAssistantServiceImpl implements AiAssistantService {
                     .build());
         }
         return AiRoleProfile.builder()
+                .userId(user.getId())
                 .role(isAdmin ? AiRoleProfile.ROLE_ADMIN : AiRoleProfile.ROLE_USER)
                 .userName(user.getName())
                 .abilities(abilities)
@@ -200,7 +245,7 @@ public class AiAssistantServiceImpl implements AiAssistantService {
                 ? new AdminAgentToolkit(context, aiPremiumAbilityService, userService,
                 tUserMapper, tRoleMapper, tTranMapper, redisService, statisticService)
                 : new UserAgentToolkit(context, aiPremiumAbilityService,
-                tTranMapper, tProductMapper, statisticService);
+                tTranMapper, tProductMapper, statisticService, promptProvider);
 
         return AiServices.builder(BusinessAgent.class)
                 .streamingChatModel(l4jStreamingChatModel)
@@ -227,6 +272,9 @@ public class AiAssistantServiceImpl implements AiAssistantService {
      * 组装角色感知的增强提示：让模型明确角色定位、能力清单与行为约束。
      * （软约束层；硬性闸门在工具层的角色断言与付费墙）
      *
+     * 提示词全部外置于 classpath:prompts/*.md，由 AiPromptProvider 启动时加载（fail-fast），
+     * 文案调整只需改 Markdown 文件并重启，无需改动 Java 代码。
+     *
      * @param attachmentCarriedOver 本轮附件是否为「会话级回捞」：为 true 时说明附件是之前轮次上传的，
      *                              模型上一轮可能已在等待用户确认，此时附件说明改为中性提示，
      *                              不再重复「直接调用导入工具、无需再索要文件」的强指令。
@@ -235,29 +283,14 @@ public class AiAssistantServiceImpl implements AiAssistantService {
                                          Attachment attachment, boolean attachmentCarriedOver) {
         StringBuilder sb = new StringBuilder();
         sb.append("=== [角色设定] ===\n");
-        sb.append("你是 DLYK 旅途管理系统的「AI 业务领航员」，面向业务职能提供智能服务，");
-        sb.append("语言专业、简洁、友好，称呼用户为「").append(userName).append("」。\n");
-        if (isAdmin) {
-            sb.append("当前用户角色：【管理员】，具备运营管理职责。\n");
-            sb.append("可用能力：用户数据 Excel 导入导出、全局订单查询、用户权限管理（查询用户/角色、分配角色、启停账号）、");
-            sb.append("以及增值付费的「经营深度洞察报告」与「交易趋势预测」。\n");
-            sb.append("操作准则：涉及用户权限修改、账号启停、批量导入等敏感操作，必须先向用户复述变更内容并征得确认后再执行。\n");
-        } else {
-            sb.append("当前用户角色：【普通用户】，只为该用户个人业务提供服务。\n");
-            sb.append("可用能力：查询本人名下的订单、交易跟进提醒、业务流程疑难解答、产品行情咨询、");
-            sb.append("以及增值付费的「经营深度洞察报告」与「交易趋势预测」。\n");
-            sb.append("数据边界：只能访问该用户本人创建的业务数据，无法访问他人或全局数据。\n");
-        }
-        sb.append("付费墙规则：若工具返回【付费能力未开通】，请礼貌引导用户点击对话中自动弹出的开通卡片完成购买。\n");
+        // 通用角色设定（含 {userName} 占位符渲染）
+        sb.append(promptProvider.render("system-common", Map.of("userName", userName))).append("\n");
+        // 按角色加载对应的能力清单与行为准则
+        sb.append(promptProvider.getTemplate(isAdmin ? "system-role-admin" : "system-role-user").strip()).append("\n");
         if (attachment != null) {
-            if (attachmentCarriedOver) {
-                // 本轮附件来自之前轮次上传（前端已消费清空），保持与上一轮"待确认"语境的连贯性
-                sb.append("附件信息：当前会话中存在已上传的 Excel 附件「").append(attachment.fileName())
-                        .append("」（此前轮次上传），导入工具可正常读取该文件。\n");
-            } else {
-                sb.append("附件信息：用户本轮已上传 Excel 附件「").append(attachment.fileName())
-                        .append("」，若用户意图为导入用户，请先复述导入事项并在用户确认后调用导入工具（文件可随时使用，无需再索要文件）。\n");
-            }
+            // 本轮上传 / 会话回捞 两种语境使用各自的附件说明模板
+            String templateName = attachmentCarriedOver ? "attachment-carried" : "attachment-current";
+            sb.append(promptProvider.render(templateName, Map.of("fileName", attachment.fileName()))).append("\n");
         }
         sb.append("=== [用户消息] ===\n").append(message);
         return sb.toString();

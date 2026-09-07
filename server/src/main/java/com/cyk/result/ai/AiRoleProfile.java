@@ -21,6 +21,9 @@ public class AiRoleProfile {
     public static final String ROLE_ADMIN = "ADMIN";
     public static final String ROLE_USER = "USER";
 
+    /** 当前登录人 ID（前端据此生成确定性会话 ID，保证跨模块切换时上下文延续） */
+    private Integer userId;
+
     /** 当前登录人的 AI 角色 */
     private String role;
 

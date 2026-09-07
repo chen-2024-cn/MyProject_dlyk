@@ -85,6 +85,16 @@ public class AiAgentController {
         return R.OK();
     }
 
+    /**
+     * 读取当前登录人的聊天记录（登录态内持久化）。
+     * 前端每次进入 AI 模块时调用，实现「切换模块不丢记录、退出登录才清除」。
+     */
+    @GetMapping("/api/ai/history")
+    public R history(Authentication authentication) {
+        TUser user = currentUser(authentication);
+        return R.OK(aiAssistantService.history(user.getId()));
+    }
+
     // ==================== 增值付费体系 ====================
 
     /** 创建增值能力支付订单（同一能力重复下单幂等复用） */

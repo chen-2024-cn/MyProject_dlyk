@@ -46,6 +46,11 @@ public class MyLogoutSuccessHandler implements LogoutSuccessHandler {
             redisService.removeValue(key);
         }
 
+        // AI 聊天记录与登录态同生命周期：退出登录即永久清除。
+        // 注意此处不做"最新token"校验——聊天记录绑定的是登录人本身而非设备，
+        // 任何一次真实退出都意味着该登录人主动结束了本次登录会话。
+        redisService.removeValue(Constants.REDIS_AI_CHAT_HISTORY_KEY + tUser.getId());
+
         //退出成功的统一结果
         R result = R.OK(CodeEnum.USER_LOGOUT);
 

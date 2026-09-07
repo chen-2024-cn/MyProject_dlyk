@@ -1,5 +1,6 @@
 package com.cyk.service.ai.toolkit;
 
+import com.cyk.config.AiPromptProvider;
 import com.cyk.mapper.TProductMapper;
 import com.cyk.mapper.TTranMapper;
 import com.cyk.model.TProduct;
@@ -10,6 +11,8 @@ import com.cyk.service.AiPremiumAbilityService;
 import com.cyk.service.StatisticService;
 import com.cyk.service.ai.AiAgentContext;
 import com.cyk.result.SummaryData;
+
+import java.util.Map;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.P;
 import lombok.extern.slf4j.Slf4j;
@@ -33,16 +36,19 @@ public class UserAgentToolkit extends AbstractAiToolkit {
     private final TTranMapper tTranMapper;
     private final TProductMapper tProductMapper;
     private final StatisticService statisticService;
+    private final AiPromptProvider promptProvider;
 
     public UserAgentToolkit(AiAgentContext context,
                             AiPremiumAbilityService premiumAbilityService,
                             TTranMapper tTranMapper,
                             TProductMapper tProductMapper,
-                            StatisticService statisticService) {
+                            StatisticService statisticService,
+                            AiPromptProvider promptProvider) {
         super(context, premiumAbilityService);
         this.tTranMapper = tTranMapper;
         this.tProductMapper = tProductMapper;
         this.statisticService = statisticService;
+        this.promptProvider = promptProvider;
     }
 
     // ==================== 免费业务能力 ====================
@@ -101,16 +107,8 @@ public class UserAgentToolkit extends AbstractAiToolkit {
     @Tool("解答 CRM 业务流程中的疑难问题，包括交易阶段含义、线索转化流程、客户管理规则等业务知识")
     public String answerBusinessFaq(@P("用户的业务问题原文") String question) {
         log.info("AI 工具调用: answerBusinessFaq | keyword={}", question);
-        String q = question == null ? "" : question;
-        StringBuilder kb = new StringBuilder("【内置业务知识库参考】\n");
-        kb.append("1. 交易阶段流转：创建交易(01新建) -> 阶段跟进 -> 成交(08成交)；成交后金额计入业绩。\n");
-        kb.append("2. 线索转化：线索录入 -> 线索跟进(添加跟进记录) -> 转为客户 -> 建立交易。\n");
-        kb.append("3. 客户数据权限：普通用户只能查看与操作本人名下的线索/客户/交易，管理员可查看全部。\n");
-        kb.append("4. 交易提醒：交易设置下次联系时间后，系统会在临近时提示跟进，建议保持每日查看。\n");
-        kb.append("5. 字典管理：阶段、来源、称谓等下拉选项统一由字典维护，如需新增请联系管理员。\n");
-        kb.append("6. 数据安全：账号密码加密存储，单设备登录互斥，异地登录当前设备会被顶下线。\n");
-        kb.append("\n用户问题：").append(q).append("\n请结合以上知识库内容给出准确回答，知识库未覆盖时如实说明。");
-        return kb.toString();
+        // 知识库全文外置于 prompts/business-faq.md，运营可直接维护 Markdown 文件扩充知识条目
+        return promptProvider.render("business-faq", Map.of("question", question == null ? "" : question));
     }
 
     @Tool("查询当前在售的产品目录及经销商报价，用于解答产品与价格相关咨询")

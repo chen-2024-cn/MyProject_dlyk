@@ -1,8 +1,11 @@
 package com.cyk.service;
 
 import com.cyk.model.TUser;
+import com.cyk.result.ai.AiChatHistoryItem;
 import com.cyk.result.ai.AiRoleProfile;
 import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 /**
  * AI 业务智能体服务。
@@ -36,4 +39,10 @@ public interface AiAssistantService {
      * 供前端渲染差异化工具面板与付费能力商店。
      */
     AiRoleProfile buildProfile(TUser user);
+
+    /**
+     * 读取指定用户的 AI 聊天记录（登录态内持久化，切换模块/刷新后可恢复）。
+     * 按时间正序返回；无记录返回空列表。
+     */
+    List<AiChatHistoryItem> history(Integer userId);
 }

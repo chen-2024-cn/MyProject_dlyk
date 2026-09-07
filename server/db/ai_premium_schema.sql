@@ -4,7 +4,9 @@
 -- 设计说明：
 --   1. 金额统一使用 DECIMAL(10,2)，禁止 DOUBLE（浮点误差是金融类字段大忌）；
 --   2. 状态流转：0待支付 -> 1已支付 / 2已取消，状态变更只允许单向推进；
---   3. 所有审计字段（create_time 等）由 SQL 默认值生成，代码侧不干预。
+--   3. 所有审计字段（create_time 等）由 SQL 默认值生成，代码侧不干预；
+--   4. expire_time 是付费有效期的唯一事实来源：付费墙只认 status=1 AND expire_time>NOW()。
+--      绕过应用手工改单时必须同步维护 expire_time，否则按无有效开通处理（对账任务会收敛 Redis）。
 -- =============================================================
 
 CREATE TABLE IF NOT EXISTS `t_ai_payment_order` (
@@ -16,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `t_ai_payment_order` (
     `price`           DECIMAL(10,2) NOT NULL COMMENT '本次支付金额（元）',
     `status`          TINYINT       NOT NULL DEFAULT 0 COMMENT '支付状态：0待支付 1已支付 2已取消',
     `paid_time`       DATETIME      NULL COMMENT '实际支付完成时间',
+    `expire_time`     DATETIME      NULL COMMENT '能力到期时间(=paid_time+30天)，付费有效期唯一事实来源',
     `create_time`     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '下单时间',
     `remark`          VARCHAR(255)  NULL COMMENT '备注（幂等键、取消原因等）',
     PRIMARY KEY (`id`),

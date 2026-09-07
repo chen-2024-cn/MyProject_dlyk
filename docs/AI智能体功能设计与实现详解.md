@@ -395,11 +395,14 @@ public class TAiPaymentOrder implements Serializable {
     public static final int STATUS_PENDING   = 0; // 待支付
     public static final int STATUS_PAID      = 1; // 已支付
     public static final int STATUS_CANCELLED = 2; // 已取消
-    // id, orderNo, userId, abilityKey, abilityName, price, status, paidTime, createTime
+    // id, orderNo, userId, abilityKey, abilityName, price, status, paidTime, expireTime, createTime
 }
 ```
 
 状态机**单向**推进：`待支付 → 已支付` 或 `待支付 → 已取消`，禁止回退。
+
+`expire_time`（能力到期时间 = `paid_time` + 30 天）是**付费有效期的唯一事实来源**：
+付费墙只认 `status=1 AND expire_time > NOW()`；多次购买续费叠加时取 `MAX(expire_time)`。
 
 ### 4.2 支付服务（幂等 + 乐观锁）
 
@@ -430,12 +433,17 @@ public R payOrder(Integer userId, String orderNo) {
 
 对应乐观锁 SQL（`TAiPaymentOrderMapper.xml`）：
 ```xml
-<!-- WHERE 锁定期望状态，杜绝 已支付→取消 等非法回退与并发双花 -->
+<!-- WHERE 锁定期望状态，杜绝 已支付→取消 等非法回退与并发双花；
+     推进至已支付时同批写入 paid_time 与 expire_time（有效期 30 天），
+     保证 DB 自身即付费有效期唯一事实来源，不依赖 Redis TTL 表达业务到期 -->
 <update id="transitStatus">
   update t_ai_payment_order
   <set>
     status = #{targetStatus},
-    <if test="targetStatus == 1">paid_time = NOW(),</if>
+    <if test="targetStatus == 1">
+      paid_time = NOW(),
+      expire_time = DATE_ADD(NOW(), INTERVAL 30 DAY),
+    </if>
   </set>
   where order_no = #{orderNo} and status = #{expectStatus}
 </update>
@@ -445,9 +453,27 @@ public R payOrder(Integer userId, String orderNo) {
 
 **文件**：`service/impl/AiPremiumAbilityServiceImpl.java`
 
-**核心原则：数据库是付费状态唯一事实来源（Single Source of Truth），Redis 仅作加速层，任何缓存丢失/故障都必须能通过回源查询自愈（最终一致性）。**
+**核心原则：数据库是付费状态与付费有效期（`expire_time`）的唯一事实来源（Single Source of Truth），Redis 仅作加速层，任何缓存丢失/故障/漂移都能通过回源查询自愈（最终一致性）。**
 
-#### 4.3.1 写路径（开通）——事务提交后才写缓存
+一致性由**三道防线**闭环保障：
+
+| 防线 | 机制 | 覆盖场景 |
+|---|---|---|
+| ① 写路径 | 订单事务 `afterCommit` 才写缓存，TTL 动态对齐 DB 剩余有效期 | 事务回滚、应用内正常支付流程 |
+| ② 读路径 | 正缓存→负缓存→DB 点查→SETNX 回填 | 缓存丢失/过期、并发竞态、Redis 故障降级 |
+| ③ 对账兜底 | 定时任务周期扫描缓存与 DB 收敛 | **绕过应用直改数据库**（手工 UPDATE/DBA 订正） |
+
+#### 4.3.1 有效期语义：expire_time 是唯一事实来源
+
+旧版本存在一个**语义级不同步**：DB 的 `status=1` 是永久有效的，而 Redis 正缓存 TTL 固定 30 天——30 天后缓存过期→回源仍判定"已开通"→再回填 30 天，"30 天有效期"形同虚设。
+
+企业级修复：订单表增加 `expire_time` 字段（= `paid_time` + 30 天，由状态机 SQL 在支付推进时同批写入）：
+
+- **付费墙判定条件**：`status=1 AND expire_time > NOW()`（点查取 `MAX(expire_time)`，续费叠加自然取最晚到期者）；
+- **缓存 TTL 动态对齐**：正缓存 TTL = DB 剩余有效期（`calcGrantTtlSeconds`），两侧到期语义完全一致；
+- **存量迁移**：`db/ai_premium_migration_v2_expire_time.sql`（加列 + 按 paid_time/create_time 回填存量订单）。
+
+#### 4.3.2 写路径（开通）——事务提交后才写缓存
 
 `grantAbility` 通过 `TransactionSynchronizationManager` 注册 `afterCommit` 钩子，订单状态推进的事务**真正提交成功后**才写正缓存并清除负缓存：
 
@@ -471,37 +497,54 @@ public void grantAbility(Integer userId, AiAbility ability) {
 }
 ```
 
-> **为什么不能在事务内同步写缓存？** Redis 写操作不参与数据库事务，若在事务提交前写缓存，一旦事务回滚，会出现「未付款用户被判定已开通」的资损级误放行。且写缓存失败只记日志告警、不抛异常——事实已落库，读路径回源自愈即可。
+> **为什么不能在事务内同步写缓存？** Redis 写操作不参与数据库事务，若在事务提交前写缓存，一旦事务回滚，会出现「未付款用户被判定已开通」的资损级误放行。且写缓存失败只记日志告警、不抛异常——事实已落库，读路径回源 + 对账任务双重自愈即可。
 
-#### 4.3.2 读路径（判定）——三级判定 + 降级容错
+`syncGrantedCache` 在钩子里**重新点查 DB** 拿最新 `expire_time` 计算 TTL，而不是写死 30 天——即使同一能力被续费叠加，缓存 TTL 也始终与 DB 真相对齐。
 
-判定顺序：**① 正缓存命中→放行 / 负缓存命中→拦截（防缓存穿透）→ ② 均未命中→订单表点查（走索引）→ ③ 按结果回填正/负缓存（懒加载自愈）**：
+#### 4.3.3 读路径（判定）——三级判定 + 降级容错
 
-```java
-// ① 缓存判定（正/负），Redis 异常时降级直查数据库，不阻断业务
-// ② 回源：countPaidByUserAndAbility 点查（走 idx_user_ability 索引）
-// ③ 回填自愈：已付费写正缓存；未付费写短期负缓存防穿透
-```
+判定顺序：**① 正缓存命中→放行 / 负缓存命中→拦截（防缓存穿透）→ ② 均未命中→订单表点查（走索引）→ ③ 按结果 SETNX 回填正/负缓存（懒加载自愈）**：
 
 关键实现要点：
 
 | 机制 | 说明 |
 |---|---|
-| **正缓存** | `dlyk:ai:premium:{userId}:{abilityKey}` = `1`，有效期 30 天（`AI_PREMIUM_ABILITY_EXPIRE_SECONDS`），存在即代表已开通 |
+| **正缓存** | `dlyk:ai:premium:{userId}:{abilityKey}` = `1`，TTL = DB 剩余有效期（最小 1 秒防脏写入），存在即代表已开通 |
 | **负缓存防穿透** | 未付费用户写入 `{正缓存Key}:deny` 标记，有效期 60 秒（`AI_PREMIUM_ABILITY_DENY_EXPIRE_SECONDS`），未付费请求不再反复打库 |
-| **回源点查** | `countPaidByUserAndAbility` 命中 `idx_user_ability(user_id, ability_key)` 索引，替代旧版全量拉取 + 内存过滤 |
+| **回源点查** | `selectMaxExpireTimeOfPaid` 命中 `idx_user_ability(user_id, ability_key)` 索引，条件含 `expire_time > NOW()`，替代旧版全量拉取 + 内存过滤 |
+| **SETNX 回填** | 回填用 `setValueIfAbsent`（`SET NX EX`），并发请求互不覆盖对方的最新结果（竞态防护） |
 | **降级容错** | Redis 读写用 `try/catch` 包裹，故障时直查数据库，缓存层不可用不阻断付费墙主流程（可用性优先） |
-| **回填自愈** | 无论正负结果都回填，保证缓存丢失/过期后下次读取即重建 |
 
-#### 4.3.3 设计权衡（为什么不用更强一致方案）
+#### 4.3.4 对账任务——第三道防线（覆盖手工改库）
+
+**文件**：`task/AiPremiumCacheReconcileTask.java`
+
+应用外的旁路修改（手工 `UPDATE t_ai_payment_order SET status=...`、DBA 数据订正、迁移脚本）不经过 `afterCommit` 钩子，缓存侧完全无感知——这是"数据库改了、Redis 没同步"的典型成因。对账任务周期性（默认 5 分钟，`project.task.ai-reconcile-delay`）将缓存与 DB 收敛：
+
+**对账 key 空间推导**（避免全表扫描/Redis SCAN）：`selectActiveUserIds`（近 200 个有订单行为的去重用户）× `AiAbility` 付费能力枚举。
+
+| 规则 | DB 真相 | Redis 现状 | 纠偏动作 | 纠正方向 |
+|---|---|---|---|---|
+| ② | 无有效开通 | 正缓存存在 | 删除正缓存 | **误放行（资损，优先纠正）** |
+| ① | 已开通 | 正缓存缺失 | 补写正缓存（TTL=剩余有效期） | 误拦截 |
+| ③ | 已开通 | TTL 与 DB 剩余有效期漂移>60s（含 -1 永久） | 重对齐 TTL | 语义漂移 |
+| ④ | 已开通 | 负缓存存在 | 删除负缓存 | 误拦截 |
+
+任务级 `try/catch`：Redis/DB 故障时跳过本轮、下轮重试，绝不影响调度线程；仅实际纠偏时输出 WARN 日志（附带"请核查订单表变更来源"提示，便于回溯谁动了数据库），平稳运行无日志噪音。
+
+> **手工改库后的生效时间**：改完数据库最长等一个对账周期（默认 5 分钟）Redis 自动收敛；等不及可手动删 key：`redis-cli -a 123456 DEL dlyk:ai:premium:{userId}:{abilityKey}`（正缓存）或加 `:deny` 后缀（负缓存）。
+> **注意**：手工把订单改成已支付时必须同步维护 `expire_time`（如 `DATE_ADD(NOW(), INTERVAL 30 DAY)`），否则付费墙按"无有效开通"处理——这是 DB 作为唯一事实来源的直接体现。
+
+#### 4.3.5 设计权衡（为什么不用更强一致方案）
 
 | 备选方案 | 不采用的原因 |
 |---|---|
-| 分布式事务（2PC/Seata） | 付费判定是读多写少、允许秒级延迟的场景，强一致的复杂度与性能损耗不划算 |
-| 订阅 binlog（Canal）异步同步 | 适用于强一致要求，对当前项目规模属于过度设计 |
-| **事务提交后写缓存 + 读回源自愈** ✅ | 业界对读加速场景的标准最终一致解，成本极低且自洽 |
+| 分布式事务（2PC/Seata） | 付费判定是读多写少、允许分钟级收敛的场景，强一致的复杂度与性能损耗不划算 |
+| 订阅 binlog（Canal）异步同步 | 能把手工改库的感知窗口缩到秒级，但引入独立中间件，对当前项目规模属于过度设计；若未来要求秒级收敛可平滑演进 |
+| **afterCommit 写缓存 + 读回源自愈 + 周期对账** ✅ | 零额外中间件的业界标准最终一致解：正常流秒级一致，旁路修改分钟级收敛，成本极低且自洽 |
 
 > **负缓存为什么只设 60 秒？** 太长会导致「刚付款的用户短时间内仍被误拦」（体验差），太短则防穿透效果弱；60 秒是生产常见折中值，且开通时会主动清除负缓存，实际不会误拦新开通用户。
+> **对账周期为什么默认 5 分钟？** 周期即"手工改库后的最大不一致窗口"，按业务容忍度权衡：越短一致性越好但 DB 点查压力越大（每轮 = 活跃用户数 × 付费能力数 次索引点查）。
 
 ---
 
@@ -643,3 +686,48 @@ const buyAbility = async (ab) => {
 3. 付费工具开头调用 `premiumGate(ability)` 即接入付费墙，免费工具直接写业务逻辑。
 
 前端无需改动——能力清单由 `/api/ai/profile` 接口下发，快捷指令按需补充即可。
+
+---
+
+## 十、提示词外置化（Prompt as Resource）
+
+### 10.1 设计动机
+
+系统角色提示词、业务知识库等文案原先硬编码在 Java 代码中，每次调整话术都需要改代码重新编译。
+现已外置为 classpath 资源文件，**产品/运营调文案不改 Java 代码，改完重启即生效**。
+
+### 10.2 文件清单（`server/src/main/resources/prompts/`）
+
+| 文件 | 用途 | 占位符 |
+|------|------|--------|
+| `system-common.md` | 通用角色设定（领航员人设） | `{userName}` |
+| `system-role-user.md` | 普通用户的能力清单与数据边界 | 无 |
+| `system-role-admin.md` | 管理员的能力清单与操作准则 | 无 |
+| `attachment-current.md` | 本轮上传附件的说明 | `{fileName}` |
+| `attachment-carried.md` | 会话回捞附件的中性说明 | `{fileName}` |
+| `business-faq.md` | CRM 业务知识库全文（答疑工具注入） | `{question}` |
+
+### 10.3 加载机制（`config/AiPromptProvider.java`）
+
+```java
+@PostConstruct
+public void loadAll() {
+    // 启动时一次性全量加载 prompts/*.md
+    // 任何文件缺失或为空 → 抛 IllegalStateException 终止启动（fail-fast）
+}
+
+public String render(String name, Map<String, String> vars) {
+    // 模板中的 {key} 命名占位符按变量表精确替换
+}
+```
+
+设计要点：
+1. **fail-fast**：提示词缺失属于部署错误，启动即失败立刻暴露，避免 AI 带病运行；
+2. **常驻内存**：加载后缓存为不可变 Map，运行期零 IO；
+3. **命名占位符**：`{userName}` 相比 `%s` 顺序占位符，改文案时不易错位。
+
+### 10.4 仍保留在代码中的文案（有意为之）
+
+- `@Tool("...")` / `@P("...")` 注解描述：Java 注解值必须是编译期常量，技术上无法外置；
+- 工具返回的操作结果话术（如「导出完成：共 N 条」）：属于业务逻辑输出而非提示词，
+  与数据强耦合，保留在代码中更利于维护。
