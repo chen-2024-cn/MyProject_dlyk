@@ -1,5 +1,6 @@
 package com.cyk.manager;
 
+import com.cyk.exception.BusinessException;
 import com.cyk.mapper.TClueMapper;
 import com.cyk.mapper.TCustomerMapper;
 import com.cyk.model.TActivityRemark;
@@ -27,8 +28,13 @@ public class CustomerManager {
     public Boolean convertCustomer(CustomerQuery customerQuery) {
         //1、验证该线索是否已经转过客户，转过了就不能再转了
         TClue tClue = tClueMapper.selectByPrimaryKey(customerQuery.getClueId());
+        // 【健壮性修复】线索 ID 不存在时旧版直接 tClue.getState() 会 NPE（→ 500 系统异常），
+        // 改为显式业务提示。
+        if (tClue == null) {
+            throw new BusinessException("线索不存在，无法转化为客户。");
+        }
         if (tClue.getState() == -1) {
-            throw new RuntimeException("该线索已经转过客户，不能再转了.");
+            throw new BusinessException("该线索已经转过客户，不能再转了.");
         }
 
         //2、向客户表插入一条数据

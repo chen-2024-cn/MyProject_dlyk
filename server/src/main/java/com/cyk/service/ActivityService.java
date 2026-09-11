@@ -15,6 +15,13 @@ public interface ActivityService {
 
     int deleteActivityById(Integer id);
 
+    /**
+     * 批量删除活动（同步级联清理备注，以规避 activity_id 外键 RESTRICT 导致的删除失败）。
+     *
+     * @return 实际删除的活动数
+     */
+    int batchDeleteActivities(List<Integer> ids);
+
     int insertActivity(ActivityQuery activityQuery);
 
     List<TActivityRemark> listRemarksById(Integer activityId);

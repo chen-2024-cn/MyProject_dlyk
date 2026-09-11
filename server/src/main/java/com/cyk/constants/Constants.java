@@ -57,6 +57,15 @@ public class Constants {
     //分页时每页显示10条数据
     public static final int PAGE_SIZE = 10;
 
+    /**
+     * 交易流程「终态」深度：stage 字典中 order 最大的前 N 个值视为终态。
+     * 当前 N=2 对应「05付款成交」「06丢失关闭」——两者是互斥的流程终局，
+     * 处于终态的交易禁止再向前推进（回退纠错不受限）。
+     * 若业务口径调整（如新增售后回访阶段、或仅丢失关闭算终态），改此常量即可，
+     * 终态判定会自动随字典 order 漂移，无需改代码逻辑。
+     */
+    public static final int TRAN_TERMINAL_STAGE_DEPTH = 2;
+
     //请求token的名称
     public static final String TOKEN_NAME = "Authorization";
 
@@ -105,5 +114,15 @@ public class Constants {
 
     /** AI 批量导入用户时未提供密码的统一初始密码 */
     public static final String AI_IMPORT_DEFAULT_PASSWORD = "Dlyk@2026";
+
+    // ------------------------------------------------------------------
+    // 交易流水号（Redis 原子序列，避免并发下的重号）
+    // ------------------------------------------------------------------
+
+    /** 交易流水号当日序列的 Redis Key 前缀（完整 key = 前缀 + yyyyMMdd） */
+    public static final String REDIS_TRAN_NO_SEQ_KEY = "dlyk:tran:no:seq:";
+
+    /** 交易流水号序列 key 的存活小时数（跨天自然切换，48h 充分覆盖单日使用） */
+    public static final Long TRAN_NO_SEQ_EXPIRE_HOURS = 48L;
 
 }

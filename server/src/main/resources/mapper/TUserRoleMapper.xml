@@ -20,6 +20,15 @@
         select role_id from t_user_role where user_id = #{userId,jdbcType=INTEGER}
     </select>
 
+    <!-- 按用户 ID 集合批量拉取绑定，避免列表页逐用户查询形成 N+1 -->
+    <select id="selectByUserIds" resultMap="BaseResultMap">
+        select id, user_id, role_id from t_user_role
+        where user_id in
+        <foreach collection="list" item="uid" open="(" close=")" separator=",">
+            #{uid,jdbcType=INTEGER}
+        </foreach>
+    </select>
+
     <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
         delete from t_user_role
         where id = #{id,jdbcType=INTEGER}

@@ -41,6 +41,20 @@
     delete from t_activity_remark
     where id = #{id,jdbcType=INTEGER}
   </delete>
+
+  <!-- 删除活动前级联物理清除其全部备注（含逻辑删除行），规避 activity_id 外键 RESTRICT -->
+  <delete id="deleteByActivityId" parameterType="java.lang.Integer">
+    delete from t_activity_remark
+    where activity_id = #{activityId,jdbcType=INTEGER}
+  </delete>
+
+  <delete id="deleteByActivityIds" parameterType="java.util.List">
+    delete from t_activity_remark
+    where activity_id in
+    <foreach collection="list" item="aid" open="(" close=")" separator=",">
+      #{aid,jdbcType=INTEGER}
+    </foreach>
+  </delete>
   <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TActivityRemark" useGeneratedKeys="true">
     insert into t_activity_remark (activity_id, note_content, create_time, 
       create_by, edit_time, edit_by, 

@@ -89,7 +89,22 @@
     where id = #{id,jdbcType=INTEGER}
   </select>
 
-  <select id="selectCustomerPage" parameterType="java.lang.Integer" resultMap="CustomerResultMap">
+  <!--
+    客户分页查询（支持多条件动态筛选）。
+
+    【功能补强说明】旧版 selectCustomerPage() 无任何入参、无 where、无 order by：
+    客户模块连最基本的「按客户名/手机号检索」都做不到，且无 order by 时翻页结果顺序
+    由 MySQL 决定（不确定序），可能出现重复行或漏行。现补齐动态条件 + 确定性排序。
+
+    【向后兼容】该方法还被 TranServiceImpl.getCustomerOptions() 复用（交易页客户下拉，需全量），
+    故所有 <if> 均以 `query != null and ...` 打头：传 null 即退化为原全量查询行为，不影响既有调用方。
+
+    【字段归属】客户表(t_customer)自身字段很少，姓名/手机号/来源等检索维度实际落在
+    关联的线索表(t_clue)与用户表(t_user)上，因此条件需按正确的表别名书写：
+      tc.*   → 线索带出的客户联系信息（姓名、手机、来源、意向状态…）
+      tct.*  → 客户自身字段（选购产品、创建时间）
+  -->
+  <select id="selectCustomerPage" resultMap="CustomerResultMap">
     select
       tct.*,
       tc.id clueId, tc.full_name, tc.phone, tc.weixin,
@@ -110,6 +125,34 @@
                         left join t_dic_value tdv4 on tc.state = tdv4.id
                         left join t_dic_value tdv5 on tc.source = tdv5.id
                         left join t_product tp on tct.product = tp.id
+    <where>
+      <!-- 文本模糊匹配（姓名/手机号是客户列表最高频的检索入口） -->
+      <if test="query != null and query.fullName != null and query.fullName != ''">
+        and tc.full_name like concat('%', #{query.fullName}, '%')
+      </if>
+      <if test="query != null and query.phone != null and query.phone != ''">
+        and tc.phone like concat('%', #{query.phone}, '%')
+      </if>
+      <!-- 等值匹配：负责人 / 市场活动 / 客户选购产品 -->
+      <if test="query != null and query.ownerId != null">
+        and tc.owner_id = #{query.ownerId}
+      </if>
+      <if test="query != null and query.activityId != null">
+        and tc.activity_id = #{query.activityId}
+      </if>
+      <if test="query != null and query.product != null">
+        and tct.product = #{query.product}
+      </if>
+      <!-- 等值匹配：线索来源 / 意向状态（客户由线索转化而来，这两个维度承自线索） -->
+      <if test="query != null and query.source != null">
+        and tc.source = #{query.source}
+      </if>
+      <if test="query != null and query.intentionState != null">
+        and tc.intention_state = #{query.intentionState}
+      </if>
+    </where>
+    <!-- 确定性排序：最新转化的客户优先；id desc 兜底防同时刻记录抖动 -->
+    order by tct.create_time desc, tct.id desc
   </select>
 
   <select id="selectCustomerByExcel" parameterType="java.util.List" resultMap="CustomerResultMap">

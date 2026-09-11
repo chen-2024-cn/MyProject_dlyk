@@ -29,7 +29,10 @@ public enum CodeEnum {
 
     ACCESS_DENIED(500, "权限不足"),
 
-    DUPLICATE_EXCEPTION(500, "邮箱或者电话重复"),
+    // 唯一约束冲突的兜底文案（正常路径已在各 Service 前置查重并抛出精准 BusinessException，
+    // 此处仅用于并发竞态等极端情况下 DuplicateKeyException 兜底；文案泛化，不再写死"邮箱或电话"，
+    // 以免字典编码等非用户场景出现误导性提示）
+    DUPLICATE_EXCEPTION(500, "数据已存在，请勿重复添加"),
 
     // ------------------------------------------------------------------
     // AI 领航员增值付费体系业务码（3000 段）

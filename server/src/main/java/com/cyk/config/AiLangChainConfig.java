@@ -14,7 +14,7 @@ public class AiLangChainConfig {
     @Value("${ai.chat.base-url:https://api.deepseek.com/v1}")
     private String baseUrl;
 
-    @Value("${ai.chat.api-key:sk-285bfcb58d7d4132ab0639247a233558}")
+    @Value("${ai.chat.api-key:${AI_API_KEY:}}")
     private String apiKey;
 
     @Value("${ai.chat.model-name:deepseek-chat}")
@@ -27,8 +27,10 @@ public class AiLangChainConfig {
                 .apiKey(apiKey)
                 .modelName(modelName)
                 .timeout(Duration.ofSeconds(60))
-                .logRequests(true)
-                .logResponses(true)
+                // 安全：关闭请求/响应日志。开启会把含 API-Key 请求头与大模型上下文写入日志，
+                // 既泄露密钥又可能落客户隐私数据；排障时可临时打开，生产必须为 false。
+                .logRequests(false)
+                .logResponses(false)
                 .build();
     }
 
@@ -39,8 +41,8 @@ public class AiLangChainConfig {
                 .apiKey(apiKey)
                 .modelName(modelName)
                 .timeout(Duration.ofSeconds(60))
-                .logRequests(true)
-                .logResponses(true)
+                .logRequests(false)
+                .logResponses(false)
                 .build();
     }
 }

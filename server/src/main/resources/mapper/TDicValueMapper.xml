@@ -96,7 +96,12 @@
     <if test="typeCode != null and typeCode != ''">
       and type_code = #{typeCode}
     </if>
-    order by `order`
+    <!-- 【修复的既有缺陷】DicValueQuery 一直有 typeValue 字段，但 XML 从未使用，
+         导致按字典值内容搜索被静默忽略（接口实测加 typeValue 条件后总数不变）。现补齐模糊查询。 -->
+    <if test="typeValue != null and typeValue != ''">
+      and type_value like concat('%', #{typeValue}, '%')
+    </if>
+    order by `order`, id
   </select>
 
   <select id="selectByTypeCode" resultMap="BaseResultMap">
@@ -105,5 +110,9 @@
     from t_dic_value
     where type_code = #{typeCode}
     order by `order`
+  </select>
+
+  <select id="countByTypeCode" resultType="java.lang.Integer">
+    select count(0) from t_dic_value where type_code = #{typeCode}
   </select>
 </mapper>

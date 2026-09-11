@@ -107,7 +107,19 @@
     where id = #{id,jdbcType=INTEGER}
   </select>
 
-  <select id="selectClueByPage" parameterType="java.lang.Integer" resultMap="ClueResultMap">
+  <!--
+    线索分页查询（支持多条件动态筛选）。
+
+    【功能补强说明】旧版签名仅接收页码参数，SQL 无任何 where 条件与 order by：
+      1) 线索模块「无法按姓名/手机号/负责人/来源/意向状态检索」，是产品功能缺失的根因；
+      2) 无 order by 意味结果顺序由 MySQL 存储引擎决定（不确定序），翻页可能出现重复/丢失行。
+    现改为接收 ClueQuery 动态条件（全部用 #{} 预编译，杜绝 SQL 注入），
+    并补 create_time desc 确定性排序（CRM 通用约定：最新线索在前）。
+
+    【参数安全】统一以 @Param("query") 显式命名，所有 <if> 均以 `query != null and ...` 打头：
+    这样调用方传 null（内部复用场景）时不会因 OGNL 解析空根对象而抛异常，且「不传条件=全量查询」保持向后兼容。
+  -->
+  <select id="selectClueByPage" resultMap="ClueResultMap">
     select
         tc.*,
         tu.id ownerId, tu.name ownerName,
@@ -126,6 +138,66 @@
                     left join t_product tp on tc.intention_product = tp.id
                    left join t_dic_value tdv4 on tc.state = tdv4.id
                    left join t_dic_value tdv5 on tc.source = tdv5.id
+    <where>
+      <!-- 文本类条件用 like 模糊匹配（并 trim 去空白，避免用户误输空格导致查不到） -->
+      <if test="query != null and query.fullName != null and query.fullName != ''">
+        and tc.full_name like concat('%', #{query.fullName}, '%')
+      </if>
+      <if test="query != null and query.phone != null and query.phone != ''">
+        and tc.phone like concat('%', #{query.phone}, '%')
+      </if>
+      <!-- 枚举/外键类条件用等值匹配（前端传字典 id 或用户 id） -->
+      <if test="query != null and query.ownerId != null">
+        and tc.owner_id = #{query.ownerId}
+      </if>
+      <if test="query != null and query.activityId != null">
+        and tc.activity_id = #{query.activityId}
+      </if>
+      <if test="query != null and query.appellation != null">
+        and tc.appellation = #{query.appellation}
+      </if>
+      <if test="query != null and query.needLoan != null">
+        and tc.need_loan = #{query.needLoan}
+      </if>
+      <if test="query != null and query.intentionState != null">
+        and tc.intention_state = #{query.intentionState}
+      </if>
+      <if test="query != null and query.intentionProduct != null">
+        and tc.intention_product = #{query.intentionProduct}
+      </if>
+      <if test="query != null and query.source != null">
+        and tc.source = #{query.source}
+      </if>
+      <!--
+        线索状态特殊约定：state = -1 是业务魔法值（已转客户），不是字典 id，
+        无法与 t_dic_value 关联；因此支持「按是否已转化」的布尔式筛选：
+          converted=true  → 仅已转化（state = -1）
+          converted=false → 仍在跟进（未转化）
+        其余正整数状态走原字典等值匹配。
+
+        【SQL 三值逻辑陷阱，实测修正】「仍在跟进」绝不能直接写 `state != -1`：
+        t_clue.state 允许为 NULL（实测 65 条中有 35 条无状态），而 NULL != -1 的结果是
+        UNKNOWN 而非 TRUE，在 WHERE 中按 FALSE 处理 ⇒ 这 35 条会被静默丢弃，
+        造成 8(已转) + 22(有状态未转) = 30 ≠ 65 的数量缺口，销售看到的「在跟进」线索少了一大半。
+        业务语义上「未设置状态」本来就属于尚未转化，故必须显式涵盖 NULL。
+        这里用 COALESCE 把 NULL 归一为 0（不可能等于魔法值 -1），写法比 OR 更紧凑，
+        且对列不施加函数运算以外的语义改变（state 无索引，不存在失效风险）。
+      -->
+      <if test="query != null and query.state != null and query.state == -1">
+        and tc.state = -1
+      </if>
+      <if test="query != null and query.state != null and query.state != -1">
+        and tc.state = #{query.state}
+      </if>
+      <if test="query != null and query.converted != null and query.converted == true">
+        and tc.state = -1
+      </if>
+      <if test="query != null and query.converted != null and query.converted == false">
+        and COALESCE(tc.state, 0) != -1
+      </if>
+    </where>
+    <!-- 确定性排序：最新线索优先；id desc 作为次级排序兜底，防止同一时刻批量导入的记录顺序抖动 -->
+    order by tc.create_time desc, tc.id desc
   </select>
   <select id="existsUserById" resultType="boolean">
     SELECT EXISTS(SELECT 1 FROM t_user WHERE id = #{userId})

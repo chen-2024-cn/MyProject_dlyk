@@ -65,13 +65,73 @@
     </select>
 
 
-        <select id="selectUserByPage" parameterType="java.lang.Integer" resultMap="BaseResultMap">
+    <!--
+      用户分页查询（用户管理页）。
+      【安全修复：源头脱敏】列表专用列清单不再包含 login_pwd——原版把 Base_Column_List
+      （含密码哈希）整体下发分页接口，任何有 user:list 权限的账号都能拿到全库 BCrypt 哈希
+      （接口实测已复现）。列表展示永远不需要密码，最彻底的修复是让它根本不进查询结果。
+      【功能补强】原版无任何搜索条件（前端搜索框只能过滤当前页 10 条，跨页失效），
+      现支持账号/姓名/手机/邮箱模糊、启用状态精确、角色存在性筛选，并可稳定排序。
+    -->
+    <sql id="Page_Column_List">
+        tu.id, tu.login_act, tu.`name`, tu.phone, tu.email,
+        tu.account_no_expired, tu.credentials_no_expired, tu.account_no_locked, tu.account_enabled,
+        tu.create_time, tu.create_by, tu.edit_time, tu.edit_by, tu.last_login_time
+    </sql>
+
+    <select id="selectUserByPage" parameterType="com.cyk.query.UserQuery" resultMap="BaseResultMap">
         select
-        <include refid="Base_Column_List"/>
+        <include refid="Page_Column_List"/>
         from t_user tu
         <where>
+            <if test="loginAct != null and loginAct != ''">
+                and tu.login_act like concat('%', #{loginAct}, '%')
+            </if>
+            <if test="name != null and name != ''">
+                and tu.`name` like concat('%', #{name}, '%')
+            </if>
+            <if test="phone != null and phone != ''">
+                and tu.phone like concat('%', #{phone}, '%')
+            </if>
+            <if test="email != null and email != ''">
+                and tu.email like concat('%', #{email}, '%')
+            </if>
+            <if test="accountEnabled != null">
+                and tu.account_enabled = #{accountEnabled}
+            </if>
+            <!-- 按角色筛选：用 exists 避免 join 后重复行破坏 PageHelper 计数 -->
+            <if test="roleId != null">
+                and exists (select 1 from t_user_role tur2
+                            where tur2.user_id = tu.id and tur2.role_id = #{roleId})
+            </if>
             ${filterSQL}
         </where>
+        order by tu.id asc
+    </select>
+
+    <!-- 唯一性前置查重（login_act/phone/email 均有库层唯一索引，excludeId 供编辑时排除自身） -->
+    <select id="countByLoginAct" resultType="java.lang.Integer">
+        select count(0) from t_user
+        where login_act = #{loginAct,jdbcType=VARCHAR}
+        <if test="excludeId != null">
+            and id != #{excludeId,jdbcType=INTEGER}
+        </if>
+    </select>
+
+    <select id="countByPhone" resultType="java.lang.Integer">
+        select count(0) from t_user
+        where phone = #{phone,jdbcType=VARCHAR}
+        <if test="excludeId != null">
+            and id != #{excludeId,jdbcType=INTEGER}
+        </if>
+    </select>
+
+    <select id="countByEmail" resultType="java.lang.Integer">
+        select count(0) from t_user
+        where email = #{email,jdbcType=VARCHAR}
+        <if test="excludeId != null">
+            and id != #{excludeId,jdbcType=INTEGER}
+        </if>
     </select>
 
     <select id="selectDetailById" resultMap="UserResultMap">

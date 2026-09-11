@@ -10,10 +10,11 @@ spring:
       max-file-size: 5MB
       max-request-size: 10MB
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/dlyk?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true
+    url: ${DB_URL:jdbc:mysql://127.0.0.1:3306/dlyk?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: root
+    username: ${DB_USERNAME:root}
+    # 安全：密码不入库，必须经环境变量 DB_PASSWORD 注入（无默认值，缺失则启动失败）
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 30
       minimum-idle: 20
@@ -24,10 +25,11 @@ spring:
 
   data:
     redis:
-      host: 127.0.0.1
-      port: 6379
-      password: 123456
-      database: 0
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      # 安全：密码经环境变量 REDIS_PASSWORD 注入（无默认值，缺失则启动失败）
+      password: ${REDIS_PASSWORD}
+      database: ${REDIS_DB:0}
 # 设置返回json时的时区和格式
   jackson:
     time-zone: GMT+8
@@ -44,15 +46,21 @@ logging:
     org.apache.ibatis: INFO
 
 # JWT验证安全密钥配置
+# 安全(fail-fast)：密钥不入库、不设默认值，必须经环境变量 JWT_SECRET 注入，缺失则后端拒绝启动。
+# 旧密钥 dY8300... 已随公开 git 历史泄露，务必轮换为新值（生成：openssl rand -base64 48）。
 jwt:
-  secret: dY8300olWQ3345;1d<3w48
+  secret: ${JWT_SECRET}
 
-# LangChain4j custom properties
+# LangChain4j custom properties（端点与密钥均不入库，全部走环境变量）
 ai:
   chat:
-    base-url: https://ws-x0twjnq8ovd2ycdr.cn-beijing.maas.aliyuncs.com/compatible-mode/v1
-    api-key: ${AI_API_KEY:}  # 默认极客测试 Key
-    model-name: qwen3.7-max-2026-06-08
+    # 基址默认中性值，真实租户端点经 AI_BASE_URL 注入；不含账号专属 workspace 标识
+    base-url: ${AI_BASE_URL:https://api.deepseek.com/v1}
+    api-key: ${AI_API_KEY:}        # 允许空：未配置AI时后端仍可启动，AI功能调用时才失败
+    model-name: ${AI_MODEL_NAME:glm-5.2}
+
+# Ensure Spring AI auto-configuration reads the same API key from the environment
+spring.ai.openai.api-key: ${AI_API_KEY:}
 
 #定时任务的调度时间
 project:

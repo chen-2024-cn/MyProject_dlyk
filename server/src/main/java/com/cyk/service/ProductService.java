@@ -17,4 +17,11 @@ public interface ProductService {
     int editProduct(ProductQuery productQuery);
 
     int deleteProductById(Integer id);
+
+    /**
+     * 批量删除产品。
+     *
+     * @return 实际删除数；任一产品被客户引用时整体失败（BusinessException，事务回滚）
+     */
+    int batchDeleteProducts(List<Integer> ids);
 }

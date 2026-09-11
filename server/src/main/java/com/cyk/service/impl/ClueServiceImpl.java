@@ -3,6 +3,7 @@ package com.cyk.service.impl;
 import com.alibaba.excel.EasyExcel;
 import com.cyk.config.UploadDataListener;
 import com.cyk.constants.Constants;
+import com.cyk.exception.BusinessException;
 import com.cyk.mapper.TClueMapper;
 import com.cyk.mapper.TClueRemarkMapper;
 import com.cyk.mapper.TCustomerMapper;
@@ -20,6 +21,7 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.InputStream;
 import java.util.Date;
@@ -43,12 +45,12 @@ public class ClueServiceImpl implements ClueService {
     @Resource
     private TDicValueMapper tDicValueMapper;
     @Override
-    public PageInfo<TClue> getClueByPage(Integer current) {
+    public PageInfo<TClue> getClueByPage(Integer current, ClueQuery query) {
 
         //设置pageHelper
         PageHelper.startPage(current, Constants.PAGE_SIZE);
-        //查询
-        List<TClue> list = tClueMapper.selectClueByPage(current);
+        //按条件查询（query 为 null 时等价于无筛选全量分页，SQL 内已做空安全处理）
+        List<TClue> list = tClueMapper.selectClueByPage(query);
         //封装分页数组到PageInfo
         PageInfo<TClue> info = new PageInfo<>(list);
         return info;
@@ -72,7 +74,7 @@ public class ClueServiceImpl implements ClueService {
     public int saveClue(ClueQuery clueQuery) {
         int i = tClueMapper.selectByPhone(clueQuery.getPhone());
         if (i > 0) {//手机号已存在
-            throw new RuntimeException("手机号已存在");
+            throw new BusinessException("手机号已存在");
         }
 
         TClue tClue = new TClue();
@@ -163,6 +165,7 @@ public class ClueServiceImpl implements ClueService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class) // 解绑客户关联 + 删线索两步原子
     public int deleteClue(Integer id) {
         tCustomerMapper.updateClueIdToNullByClueId(id);
         int i = tClueMapper.deleteByPrimaryKey(id);
@@ -170,6 +173,7 @@ public class ClueServiceImpl implements ClueService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class) // 整批删除原子回滚
     public int deleteClueBatch(List<Integer> ids) {
         int count = 0;
         for (Integer id : ids) {

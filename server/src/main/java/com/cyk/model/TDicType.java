@@ -36,5 +36,12 @@ public class TDicType implements Serializable {
      */
     private List<TDicValue> dicValueList;
 
+    /**
+     * 字典值数量（目录展示用，非表字段）。
+     * <p>由 {@code selectAllTypes} 的相关子查询填充；其余查询不映射该列时为 null，
+     * 不影响既有逻辑。字典类型目录页据此显示每类的值数徽章并标记「空类型」。</p>
+     */
+    private Integer valueCount;
+
     private static final long serialVersionUID = 1L;
 }

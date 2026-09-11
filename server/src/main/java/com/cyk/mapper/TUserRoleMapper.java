@@ -34,4 +34,12 @@ public interface TUserRoleMapper {
      * 批量插入用户角色绑定（一个用户一次分配多个角色）
      */
     int insertBatch(@Param("list") List<TUserRole> list);
+
+    /**
+     * 按用户 ID 集合批量查询角色绑定。
+     * <p>用户列表页需展示每个账号的角色，若逐个用户调 {@code selectRoleIdsByUserId}
+     * 会造成「一页 10 行 = 10 次额外查询」的 N+1 问题（同类缺陷曾在权限按钮
+     * 校验中引发请求风暴）。改为一次拉取本页全部绑定后内存分组。</p>
+     */
+    List<TUserRole> selectByUserIds(@Param("list") List<Integer> userIds);
 }

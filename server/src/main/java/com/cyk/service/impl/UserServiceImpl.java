@@ -2,6 +2,7 @@ package com.cyk.service.impl;
 
 import com.alibaba.excel.util.BooleanUtils;
 import com.cyk.constants.Constants;
+import com.cyk.exception.BusinessException;
 import com.cyk.manager.RedisManager;
 import com.cyk.mapper.TPermissionMapper;
 import com.cyk.mapper.TRoleMapper;
@@ -22,6 +23,7 @@ import com.github.pagehelper.PageInfo;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -34,8 +36,11 @@ import tools.jackson.databind.util.BeanUtil;
 
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -94,13 +99,8 @@ public class UserServiceImpl implements UserService {
         List<TPermission> menuPermissionList = tPermissionMapper.selectMenuPermissionByUserId(tUser.getId());
         tUser.setMenuPermissionList(menuPermissionList);
 
-        //查询用户功能权限
-        List<TPermission> buttonPermissionsList = tPermissionMapper.selectButtonPermissionByUserId(tUser.getId());
-        List<String> stringList = new ArrayList<>();
-        for (TPermission tPermission : buttonPermissionsList) {
-            stringList.add(tPermission.getCode());//权限标识符
-        }
-        tUser.setPermissionList(stringList);
+        //查询用户功能权限（登录态鉴权依据：决定 @PreAuthorize 能否通过）
+        tUser.setPermissionList(resolveButtonPermissions(tUser.getId(), list));
         return tUser;
     }
 
@@ -222,14 +222,49 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public PageInfo<TUser> getUserByPage(Integer current) {
+    public PageInfo<TUser> getUserByPage(Integer current, UserQuery userQuery) {
+        // 【修复的既有缺陷】原版固定传 BaseQuery.builder().build()，列表接口不接收任何筛选字段，
+        // 导致前端搜索框只能过滤当前页 10 条、跨页彻底失效。现贯通 UserQuery 到 SQL。
+        UserQuery query = (userQuery == null) ? new UserQuery() : userQuery;
         //设置pageHelper
         PageHelper.startPage(current, Constants.PAGE_SIZE);
-        //查询
-        List<TUser> list = tUserMapper.selectUserByPage(BaseQuery.builder().build());
+        //查询（SQL 源头已不查 login_pwd，天然脱敏）
+        List<TUser> list = tUserMapper.selectUserByPage(query);
         //封装分页数组到PageInfo
         PageInfo<TUser> info = new PageInfo<>(list);
+        // 批量回填角色名称（一次查询取本页全部绑定，避免逐行 N+1）
+        fillRoleNames(info.getList());
         return info;
+    }
+
+    /**
+     * 为列表批量回填角色名称。
+     *
+     * <p>selectUserByPage 用 BaseResultMap，映射的是基础列，roleList 字段为 null；
+     * 若逐行调 selectRoleIdsByUserId + selectRoleNamesByIds，一页 10 行会产生 20 次额外
+     * 查询（N+1，与本项目早期权限按钮请求风暴同源）。现改为两次查询：一次取本页全部
+     * 用户-角色绑定，一次取全部角色做 id→name 映射，再在内存分组。</p>
+     */
+    private void fillRoleNames(List<TUser> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        List<Integer> userIds = list.stream().map(TUser::getId).collect(Collectors.toList());
+        List<com.cyk.model.TUserRole> bindings = tUserRoleMapper.selectByUserIds(userIds);
+        // userId -> [roleName,...]
+        Map<Integer, List<String>> roleNamesByUser = new HashMap<>();
+        if (bindings != null && !bindings.isEmpty()) {
+            Map<Integer, String> roleNameMap = tRoleMapper.selectRoleList().stream()
+                    .collect(Collectors.toMap(com.cyk.model.TRole::getId,
+                            r -> r.getRoleName() != null ? r.getRoleName() : r.getRole()));
+            for (com.cyk.model.TUserRole b : bindings) {
+                roleNamesByUser.computeIfAbsent(b.getUserId(), k -> new ArrayList<>())
+                        .add(roleNameMap.getOrDefault(b.getRoleId(), ""));
+            }
+        }
+        for (TUser u : list) {
+            u.setRoleList(roleNamesByUser.getOrDefault(u.getId(), new ArrayList<>()));
+        }
     }
 
     @Override
@@ -251,6 +286,9 @@ public class UserServiceImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int saveUser(UserQuery userQuery) {
+        // 唯一性前置校验：账号/手机/邮箱库层均有唯一索引，原版直接写库冲突时报
+        // 误导性的「邮箱或者电话重复」，现给出精准提示。
+        checkUserUniqueness(userQuery);
 
         TUser tUser = new TUser();
         //将UserQuery数据放进tUser里面
@@ -272,13 +310,34 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-     * 分配用户角色：先清空旧绑定，再批量写入新绑定（角色为空时仅清空）
+     * 分配用户角色：先清空旧绑定，再批量写入新绑定（角色为空时仅清空）。
+     *
+     * <p>【返回值的意义】返回「角色集合是否真的发生了变化」。调用方据此决定是否需要
+     * 强制目标用户下线——因为 {@code @PreAuthorize} 依据的是 <b>JWT 快照</b>而非实时查库，
+     * 改完角色后旧 token 仍按旧权限行事（默认会话 1 小时，勾选"记住我"长达 7 天），
+     * 构成撤权场景下的越权窗口。详见 {@link #invalidateSessionIfRolesChanged}。</p>
+     *
+     * <p>【为何必须做变更检测】前端 UserView 提交时总是带上 roleIds（未改动时为原值，
+     * 无角色时为空数组），因此"编辑用户资料"这一动作无论是否动角色都会走到这里。
+     * 若不检测变化，管理员仅改名/改手机号也会把该用户踢下线，属于无谓的打扰。</p>
+     *
+     * @return true 表示角色绑定发生了实质变化（新增/移除/完全清空）；false 表示前后一致
      */
-    private void assignRoles(Integer userId, java.util.List<Integer> roleIds) {
+    private boolean assignRoles(Integer userId, java.util.List<Integer> roleIds) {
+        // 先取出变更前的角色集合作为比对基准
+        List<Integer> oldRoleIds = tUserRoleMapper.selectRoleIdsByUserId(userId);
+        java.util.Set<Integer> oldSet = new java.util.HashSet<>(
+                oldRoleIds == null ? java.util.Collections.emptyList() : oldRoleIds);
+
+        // 目标角色：null 视为「不改动」（调用方已在外层判断），此处按空集合处理仅用于比对
+        List<Integer> targetList = (roleIds == null) ? java.util.Collections.emptyList() : roleIds;
+        java.util.Set<Integer> newSet = new java.util.HashSet<>(targetList);
+        // newSet 去重后可能小于 targetList（前端误传重复项），统一以去重结果写入
+
         tUserRoleMapper.deleteByUserId(userId);
-        if (roleIds != null && !roleIds.isEmpty()) {
+        if (!newSet.isEmpty()) {
             List<com.cyk.model.TUserRole> list = new ArrayList<>();
-            for (Integer roleId : roleIds) {
+            for (Integer roleId : newSet) {
                 com.cyk.model.TUserRole ur = new com.cyk.model.TUserRole();
                 ur.setUserId(userId);
                 ur.setRoleId(roleId);
@@ -286,6 +345,38 @@ public class UserServiceImpl implements UserService {
             }
             tUserRoleMapper.insertBatch(list);
         }
+
+        // Set.equals 做集合比对：忽略顺序差异（[1,2] 与 [2,1] 视为未变化）
+        return !oldSet.equals(newSet);
+    }
+
+    /**
+     * 角色发生实质变化时，销毁目标用户的登录态，促使其重新登录以换取新权限。
+     *
+     * <p>【修复的安全隐患】本系统的鉴权分两条独立路径：</p>
+     * <ul>
+     *   <li>前端 {@code v-hasPermission} ← {@code /api/login/info} <b>实时查库</b>，改完立即生效；</li>
+     *   <li>后端 {@code @PreAuthorize} ← {@code TokenVerifyFilter} 从 <b>JWT 载体</b>重建 SecurityContext，
+     *       用的是签发时刻的权限快照。</li>
+     * </ul>
+     * <p>两条路径不一致会导致：管理员收走某人的角色后，该用户前端按钮消失、看似已失权，
+     * 但只要直接调接口，旧 token 仍按原权限放行——最长可持续到 token 过期（1 小时，"记住我"7 天）。</p>
+     *
+     * <p>【与既有范式对齐】本项目已有同样的处理先例：
+     * {@code aiUpdateUserRolesAndStatus} 在禁用账号时删 key、{@code deleteById} 与 {@code batchDelUserId}
+     * 在删除用户时删 key。本方法把这一约定补全到「角色变更」这一遗漏分支。</p>
+     *
+     * <p>【体验取舍】被踢下线的用户会收到既有的 903「Token 已过期」提示并回到登录页，
+     * 重新登录后即获得与新角色一致的前后端权限视图。相比留下最长 7 天的越权窗口，
+     * 一次重新登录是明显更划算的代价。</p>
+     */
+    private void invalidateSessionIfRolesChanged(Integer userId, boolean rolesChanged, String scene) {
+        if (!rolesChanged) {
+            return;
+        }
+        redisService.delete(Constants.REDIS_JWT_KEY + userId);
+        log.info("用户角色已变更，销毁其登录态以强制按新权限重新认证 | scene={}, targetUserId={}",
+                scene, userId);
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -301,16 +392,51 @@ public class UserServiceImpl implements UserService {
             redisService.delete(Constants.REDIS_LOGIN_FAIL_KEY + u.getLoginAct());
             redisService.delete(Constants.REDIS_LOGIN_LOCK_KEY + u.getLoginAct());
         }
-        int rows = tUserMapper.deleteByPrimaryKey(id);
+        // 【修复的既有缺陷】用户可能被业务数据外键引用（t_activity.owner_id / create_by 等，
+        // 均为 ON DELETE RESTRICT）。原版直接 deleteByPrimaryKey 抛 SQLIntegrityConstraintViolation，
+        // 返回不友好的「数据库操作失败」（后台日志已复现 owner_id 引用导致删除失败）。
+        // CRM 语义下负责人/创建人不应连带删除业务数据，故阻止并引导改用「禁用账号」。
+        int rows;
+        try {
+            rows = tUserMapper.deleteByPrimaryKey(id);
+        } catch (DataAccessException e) {
+            log.warn("删除用户失败，疑似被业务数据（线索/客户/交易/活动等）外键引用 | userId={}", id, e);
+            throw new BusinessException("该账号名下仍关联业务数据，无法直接删除；如需停用请改为「禁用账号」");
+        }
         if (rows == 1) {
             evictOwnerCache(); // 用户被删除 → 负责人下拉列表不能再出现此人
         }
         return rows;
     }
 
+    /**
+     * 用户唯一性前置查重（登录账号 / 手机 / 邮箱，三者均为库层唯一索引）。
+     *
+     * <p>excludeId 用于编辑场景排除自身——改名不改账号时不应误报「账号已存在」。
+     * id 为 null 或 0 视为新增。</p>
+     */
+    private void checkUserUniqueness(UserQuery q) {
+        Integer excludeId = (q.getId() == null || q.getId() == 0) ? null : q.getId();
+        if (StringUtils.hasText(q.getLoginAct())
+                && tUserMapper.countByLoginAct(q.getLoginAct().trim(), excludeId) > 0) {
+            throw new BusinessException("登录账号「" + q.getLoginAct().trim() + "」已存在，请更换");
+        }
+        if (StringUtils.hasText(q.getPhone())
+                && tUserMapper.countByPhone(q.getPhone().trim(), excludeId) > 0) {
+            throw new BusinessException("手机号「" + q.getPhone().trim() + "」已被其他账号占用");
+        }
+        if (StringUtils.hasText(q.getEmail())
+                && tUserMapper.countByEmail(q.getEmail().trim(), excludeId) > 0) {
+            throw new BusinessException("邮箱「" + q.getEmail().trim() + "」已被其他账号占用");
+        }
+    }
+
     @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateUser(UserQuery userQuery) {
+        // 编辑同样做唯一性校验：排除自身 id，避免改手机号/邮箱撞到他人账号时报误导性文案
+        checkUserUniqueness(userQuery);
+
         TUser tUser = new TUser();
         BeanUtils.copyProperties(userQuery, tUser);
 
@@ -325,7 +451,10 @@ public class UserServiceImpl implements UserService {
         int i = tUserMapper.updateByPrimaryKeySelective(tUser);
         //前端传了 roleIds 就同步调整角色（未传则不动角色绑定）
         if (i >= 1 && userQuery.getRoleIds() != null) {
-            assignRoles(tUser.getId(), userQuery.getRoleIds());
+            boolean rolesChanged = assignRoles(tUser.getId(), userQuery.getRoleIds());
+            // 【安全闭环】角色真变了才踢下线：前端提交总携带 roleIds（未改动时为原值），
+            // 不做变更检测会让“仅改名”这类无关编辑也把用户踢下线，属无谓打扰。
+            invalidateSessionIfRolesChanged(tUser.getId(), rolesChanged, "user:update");
         }
         if (i >= 1) {
             evictOwnerCache(); // 用户信息可能被改名 → 负责人下拉列表需同步刷新
@@ -344,7 +473,14 @@ public class UserServiceImpl implements UserService {
                 redisService.delete(Constants.REDIS_JWT_KEY + idObj);
             }
         }
-        int rows = tUserMapper.deleteByIds(ids);
+        // 与单删一致的外键引用保护：批量中任一账号被业务数据引用，整个事务回滚并提示
+        int rows;
+        try {
+            rows = tUserMapper.deleteByIds(ids);
+        } catch (DataAccessException e) {
+            log.warn("批量删除用户失败，疑似其中某账号被业务数据外键引用 | ids={}", ids, e);
+            throw new BusinessException("所选账号中有人名下仍关联业务数据，无法直接删除；如需停用请改为「禁用账号」");
+        }
         if (rows > 0) {
             evictOwnerCache(); // 批量删除用户 → 负责人下拉列表同步失效
         }
@@ -374,6 +510,39 @@ public class UserServiceImpl implements UserService {
      */
     private void evictOwnerCache() {
         redisService.delete(Constants.REDIS_OWNER_KEY);
+    }
+
+    /**
+     * 解析登录人生效的按钮权限码集合。
+     *
+     * <p><b>超级管理员隐式全权限</b>：凡角色含 {@link Constants#ROLE_ADMIN}，
+     * 直接取得系统内定义的全部按钮权限码，与 {@code t_role_permission} 绑定表的
+     * 配置完整性解耦；普通用户仍严格按绑定生效（最小权限原则）。</p>
+     *
+     * <p><b>为何必须这样做（修复的真实回归）</b>：本项目操作级鉴权在双侧都以
+     * permissionList 为准——前端 {@code v-hasPermission} 据此删按钮，
+     * 后端 {@code @PreAuthorize("hasAuthority('xxx')")} 据此拦请求；而 permissionList
+     * 完全由 {@code t_role_permission} 联结产生。种子数据只要漏配一行，管理员就会被
+     * 自己的权限注解挡在外面：实测环境即缺 {@code tran:add/edit/delete} 与
+     * {@code customer:delete}，导致交易新建/编辑/删除、阶段推进、客户删除全部不可用。
+     * “管理员功能可用”是系统基本可用性契约，不应被运维数据的完整性问题击穿。</p>
+     *
+     * <p>注意：只提升按钮级权限，不影响菜单树（menuPermissionList），
+     * 侧边栏导航结构仍由实际配置决定。</p>
+     *
+     * @param userId   用户 ID（普通用户分支据此查自身已绑定权限）
+     * @param roleList 该用户的角色标识列表
+     * @return 生效的按钮权限码列表
+     */
+    private List<String> resolveButtonPermissions(Integer userId, List<String> roleList) {
+        if (roleList != null && roleList.contains(Constants.ROLE_ADMIN)) {
+            return tPermissionMapper.selectAllButtonCodes();
+        }
+        List<String> codes = new ArrayList<>();
+        for (TPermission tPermission : tPermissionMapper.selectButtonPermissionByUserId(userId)) {
+            codes.add(tPermission.getCode());
+        }
+        return codes;
     }
 
     @Override
@@ -409,13 +578,8 @@ public class UserServiceImpl implements UserService {
         List<TPermission> menuPermissionList = tPermissionMapper.selectMenuPermissionByUserId(tUser.getId());
         tUser.setMenuPermissionList(menuPermissionList);
 
-        // 查询用户按钮权限
-        List<TPermission> buttonPermissionList = tPermissionMapper.selectButtonPermissionByUserId(tUser.getId());
-        List<String> permissionCodes = new ArrayList<>();
-        for (TPermission tPermission : buttonPermissionList) {
-            permissionCodes.add(tPermission.getCode());
-        }
-        tUser.setPermissionList(permissionCodes);
+        // 查询用户按钮权限（前端 v-hasPermission 指令的数据源，与登录态鉴权共用同一套规则）
+        tUser.setPermissionList(resolveButtonPermissions(tUser.getId(), roleNames));
 
         return tUser;
     }
@@ -486,7 +650,8 @@ public class UserServiceImpl implements UserService {
 
         // 角色变更：复用内部事务逻辑（先删旧绑定再批量写入）
         if (roleIds != null) {
-            assignRoles(targetUserId, roleIds);
+            boolean rolesChanged = assignRoles(targetUserId, roleIds);
+            invalidateSessionIfRolesChanged(targetUserId, rolesChanged, "ai:updateRoles");
         }
 
         // 禁用账号 → 立即清理登录 token，强制下线（安全闭环）

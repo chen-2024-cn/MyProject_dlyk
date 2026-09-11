@@ -54,14 +54,21 @@
         <if test="ownerId != null">
           and ta.owner_id = #{ownerId}
         </if>
-        <if test="name != null">
+        <!-- name 是 String，前端清空后传入空串而非 null，需 != '' 一并判定，避免退化为无谓的 like '%%' -->
+        <if test="name != null and name != ''">
           and ta.name like concat ('%', #{name}, '%')
         </if>
+        <!--
+          【修复的既有缺陷】活动时间筛选语义由「完全包含」改为「重叠」。
+          原版 start_time >= S AND end_time <= E 要求活动整段落在区间内，
+          会把跨越查询区间的活动（如活动横跨两个月）整条漏掉，搜索结果不全。
+          重叠判定：活动结束 >= 查询开始 且 活动开始 <= 查询结束，才是「该时段内有活动」的正确口径。
+        -->
         <if test="startTime != null">
-          <![CDATA[ and ta.start_time >= #{startTime} ]]>  <!-- 小于号要用转义 -->
+          <![CDATA[ and ta.end_time >= #{startTime} ]]>
         </if>
         <if test="endTime != null">
-          <![CDATA[   and ta.end_time <= #{endTime}  ]]>
+          <![CDATA[ and ta.start_time <= #{endTime} ]]>
         </if>
         <if test="budget != null">
           and ta.cost >= #{budget}
@@ -71,7 +78,24 @@
         </if>
         ${filterSQL}
       </where>
+      <!--
+        【修复的既有缺陷】原版无 order by，分页顺序由存储引擎随机返回，翻页会出现重复/遗漏行。
+        按创建时间倒序（最新活动在前），id 作次级键保证同一时间戳下的稳定顺序。
+      -->
+      order by ta.create_time desc, ta.id desc
     </select>
+
+    <!--
+      批量删除活动。ids 由 Controller 端从 @RequestBody 接收的 List<Integer> 传入，
+      全部走 #{} 预编译占位，无拼接注入风险。
+    -->
+    <delete id="deleteByIds" parameterType="java.util.List">
+      delete from t_activity
+      where id in
+      <foreach collection="list" item="id" open="(" close=")" separator=",">
+        #{id,jdbcType=INTEGER}
+      </foreach>
+    </delete>
 
     <select id="selectOngoingActivity" resultType="com.cyk.model.TActivity" resultMap="BaseResultMap">
         select

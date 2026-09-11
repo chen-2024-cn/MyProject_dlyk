@@ -58,4 +58,8 @@ public class UserQuery extends BaseQuery{
      * 用户拥有的角色ID列表（新建/编辑用户时由管理员分配）
      */
     private java.util.List<Integer> roleIds;
-}
+    /**
+     * 列表筛选专用：按单个角色过滤账号（区别于 roleIds 的提交语义）。
+     * 典型场景：用户管理页筛选「只看销售角色」的账号。
+     */
+    private Integer roleId;}

@@ -22,13 +22,25 @@ import org.springframework.beans.factory.annotation.Value;
 @Slf4j
 public class JWTUtils {
 
-    public static String SECRET = "dY8300olWQ3345;1d<3w48";
+    // 【安全修复】此处原硬编码默认密钥（即随 git 历史公开泄露的那一个），已移除。
+    // 由 JwtConfig.setSecret 在启动时从环境变量 JWT_SECRET 注入；未注入则启动失败（fail-fast），
+    // 确保泄露的旧密钥不会以任何形式被重新沿用。
+    public static String SECRET;
 
     /**
      * 生成JWT （token）
      *
+     * <p>【安全修复】JWT 本体必须携带过期声明（exp），与 Redis 会话 TTL 对齐：</p>
+     * <ul>
+     *   <li>旧版 JWT 永不过期，token 的生死完全依赖 Redis key —— 一旦 Redis 数据被
+     *       恢复/迁移或校验链路被绕过，签发多年的旧 token 仍可验签通过；</li>
+     *   <li>携带 exp 后，即使脱离 Redis，过期 token 也无法通过 {@link #verifyJWT}。</li>
+     * </ul>
+     *
+     * @param userJSON      用户负载 JSON（<b>调用方必须保证不含密码哈希等敏感字段</b>）
+     * @param expireSeconds 过期时长（秒），与写入 Redis 的 TTL 使用同一值，双端语义一致
      */
-    public static String createJWT(String userJSON) {
+    public static String createJWT(String userJSON, long expireSeconds) {
         //组装头数据
         Map<String, Object> header = new HashMap<>();
         header.put("alg", "HS256");
@@ -40,6 +52,9 @@ public class JWTUtils {
 
                 //负载
                 .withClaim("user", userJSON)
+
+                //过期时间：当前时间 + TTL（与 Redis 会话有效期对齐，防"僵尸 token"）
+                .withExpiresAt(new Date(System.currentTimeMillis() + expireSeconds * 1000))
 
                 //签名
                 .sign(Algorithm.HMAC256(SECRET));

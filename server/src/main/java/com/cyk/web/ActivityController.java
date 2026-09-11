@@ -59,6 +59,31 @@ public class ActivityController {
         return i == 1 ? R.OK() : R.FAIL();
     }
 
+    /**
+     * 批量删除活动。
+     *
+     * <p>【修复的既有缺陷】前端「批量删除」按钮一直调用 {@code POST /api/activities/batch-delete}，
+     * 但后端从未实现该端点，请求落入全局异常处理返回 500（实测已复现）。
+     * 此处补齐，Service 层会在单事务内级联清理备注后批量删除。</p>
+     */
+    @PreAuthorize("hasAuthority('activity:delete')")
+    @PostMapping("/api/activities/batch-delete")
+    public R batchDeleteActivity(@RequestBody BatchIdsRequest request) {
+        List<Integer> ids = request == null ? null : request.getIds();
+        if (ids == null || ids.isEmpty()) {
+            return R.FAIL("请选择要删除的活动");
+        }
+        int deleted = activityService.batchDeleteActivities(ids);
+        return R.OK("已删除 " + deleted + " 个活动");
+    }
+
+    /** 批量删除请求体：仅接收 id 列表 */
+    static class BatchIdsRequest {
+        private List<Integer> ids;
+        public List<Integer> getIds() { return ids; }
+        public void setIds(List<Integer> ids) { this.ids = ids; }
+    }
+
     @PreAuthorize("hasAuthority('activity:add')")
     @PostMapping("/api/activities")
     public R addActivity( ActivityQuery activityQuery) {
@@ -68,7 +93,11 @@ public class ActivityController {
 
     /**
      * 查询某个活动的所有备注（未删除）
+     *
+     * <p>【安全修复】原版无任何鉴权，同于线索/交易备注的早期缺陷——登录态下任意
+     * 用户都可读取活动跟进记录（含客户/活动隐私）。读取收敛到 activity:view（与查看详情同级）。</p>
      */
+    @PreAuthorize("hasAuthority('activity:view')")
     @GetMapping("api/activities/{activityId}/remarks")
     public R listRemarks(@PathVariable Integer activityId){
         List<TActivityRemark> tActivityRemarks = activityService.listRemarksById(activityId);
@@ -77,10 +106,10 @@ public class ActivityController {
 
     /**
      * 添加活动备注
-     * @param activityId
-     * @param remark
-     * @return
+     *
+     * <p>【安全修复】原版无鉴权，与线索/交易备注加固保持一致，收敛到 activity:edit。</p>
      */
+    @PreAuthorize("hasAuthority('activity:edit')")
     @PostMapping("api/activities/{activityId}/remarks")
     public R addRemark(@PathVariable Integer activityId, TActivityRemark remark) {
         remark.setActivityId(activityId);
@@ -98,6 +127,7 @@ public class ActivityController {
     /**
      * 修改备注
      */
+    @PreAuthorize("hasAuthority('activity:edit')")
     @PutMapping("/api/activities/remarks/{remarkId}")
     public R updateRemark(@PathVariable Integer remarkId, @RequestBody TActivityRemark remark) {
         TActivityRemark existing = activityService.getRemarkById(remarkId);
@@ -110,10 +140,10 @@ public class ActivityController {
         }
         TUser currentUser = (TUser) auth.getPrincipal();
         boolean isAdmin = isAdmin(currentUser.getId());
-        if (isAdmin) {
-            return R.FAIL("管理员不能修改备注");
-        }
-        if (!existing.getCreateBy().equals(currentUser.getId())) {
+        // 【修复的逻辑倒置】原版对管理员直接返回「管理员不能修改备注」，而删除接口却允许管理员
+        // 删任意备注——两者自相矛盾且违反管理职责。现与删除保持一致：管理员可编辑任意备注，
+        // 普通用户仅限本人创建的备注。
+        if (!isAdmin && !existing.getCreateBy().equals(currentUser.getId())) {
             return R.FAIL("只能修改自己创建的备注");
         }
         TActivityRemark updateObj = new TActivityRemark();
@@ -128,6 +158,7 @@ public class ActivityController {
     /**
      * 删除备注（逻辑删除）
      */
+    @PreAuthorize("hasAuthority('activity:delete')")
     @DeleteMapping("/api/activities/remarks/{remarkId}")
     public R deleteRemark(@PathVariable Integer remarkId) {
         TActivityRemark existing = activityService.getRemarkById(remarkId);

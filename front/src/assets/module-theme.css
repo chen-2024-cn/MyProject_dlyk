@@ -1,0 +1,517 @@
+/* ============================================================================
+ * DLYK CRM · 业务模块共享设计令牌 (Module Design Tokens)
+ * ----------------------------------------------------------------------------
+ * 【为什么需要这个文件】
+ * 项目此前存在两套割裂的视觉语言：
+ *   - 登录页 LoginForm.vue：「墨绿森林 + 鎏金」深色沉浸质感（全屏独立场景）；
+ *   - 数据看板 StatisticView.vue：已把该美学转译为浅色雅致风（工作区场景）。
+ * 而线索/客户/交易三大核心模块却是「裸奔的 el-button + 无边框 el-table」，
+ * 无标题、无说明、无状态标识、无空态，与上述两者均不统一。
+ *
+ * 本文件抽取 StatisticView 已验证的设计令牌为共享层，让业务模块与看板同源：
+ *   墨绿森林主色 #5f936b · 香槟金点缀 #ae8255 · Georgia eyebrow · 圆角卡片 + 悬浮光晕
+ * 好处：① 视觉一致；② 改一处主题色全局生效；③ 单文件维护，避免 6 处复制几百行 CSS。
+ *
+ * 【使用方式】在各业务视图的 <style> 顶部 @import 本文件后，
+ * 直接复用 .module-shell / .module-hero / .panel-card / .forest-table 等类名。
+ * ========================================================================== */
+
+/* ---------- 1. 设计令牌（与 StatisticView 完全同源） ---------- */
+.module-shell {
+  --forest-border: #dce8df;
+  --forest-text: #294434;
+  --forest-muted: #708277;
+  --forest-accent: #5f936b;
+  --forest-soft: #edf5ef;
+  --champagne: #ae8255;
+  /* 卡片本体：亚光白玻璃 + 极浅投影，与看板 stat-card 一致 */
+  --card-bg: rgba(255, 255, 255, 0.9);
+  --card-border: rgba(210, 225, 215, 0.9);
+  --card-shadow: 0 8px 24px rgba(36, 75, 47, 0.06), inset 0 1px rgba(255, 255, 255, 0.8);
+  --card-shadow-hover: 0 15px 32px rgba(36, 75, 47, 0.11);
+
+  position: relative;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 4px 0 8px;
+  box-sizing: border-box;
+  /* 与看板同款的极淡双角光晕，让页面不"死白"但有呼吸感 */
+  background-image:
+    radial-gradient(circle at 4% 2%, rgba(95, 147, 107, 0.08), transparent 23%),
+    radial-gradient(circle at 96% 0%, rgba(174, 130, 85, 0.06), transparent 20%);
+}
+
+/* ---------- 2. 页面 Hero 头（eyebrow + 标题 + 描述 + 右侧状态徽标） ---------- */
+.module-hero {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding: 10px 4px 18px;
+  border-bottom: 1px solid var(--forest-border);
+}
+
+.module-hero__eyebrow {
+  display: block;
+  margin-bottom: 8px;
+  color: #8d6b48;
+  font-family: Georgia, serif;
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.module-hero h2 {
+  margin: 0;
+  color: var(--forest-text);
+  font-family: Georgia, 'Microsoft YaHei', serif;
+  font-size: clamp(21px, 2.4vw, 29px);
+  letter-spacing: 2px;
+}
+
+.module-hero p {
+  margin: 8px 0 0;
+  color: var(--forest-muted);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+/* 右侧运行状态徽标（复刻看板 .dashboard-hero__status） */
+.module-hero__status {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 9px;
+  padding: 9px 14px;
+  border: 1px solid #d7e7db;
+  border-radius: 99px;
+  background: rgba(245, 250, 246, 0.9);
+  color: #617669;
+  font-size: 12px;
+  box-shadow: 0 5px 16px rgba(48, 85, 58, 0.05);
+}
+
+.module-hero__status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #69a675;
+  box-shadow: 0 0 0 4px rgba(105, 166, 117, 0.12);
+}
+
+/* ---------- 3. 概览指标条（模块级数据摘要，让"数字说话"） ---------- */
+.module-metrics {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.metric-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 17px;
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  cursor: default;
+}
+
+.metric-tile:hover {
+  transform: translateY(-3px);
+  border-color: #bcd6c2;
+  box-shadow: var(--card-shadow-hover);
+}
+
+.metric-tile__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #edf6ef, #dcecdf);
+  color: #4f865b;
+}
+
+/* 变体色：与看板四张卡片同色系（绿/蓝/金/棕），用于区分指标语义 */
+.metric-tile--blue .metric-tile__icon {
+  background: linear-gradient(135deg, #edf6fa, #dbeaf1);
+  color: #4c819d;
+}
+.metric-tile--gold .metric-tile__icon {
+  background: linear-gradient(135deg, #faf5ec, #eee2d1);
+  color: #a47a4f;
+}
+.metric-tile--bronze .metric-tile__icon {
+  background: linear-gradient(135deg, #f6f1e9, #e9ddcc);
+  color: #987047;
+}
+
+.metric-tile__label {
+  font-size: 12px;
+  color: var(--forest-muted);
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+}
+
+.metric-tile__value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--forest-text);
+  font-family: Georgia, 'Microsoft YaHei', serif;
+  line-height: 1.2;
+}
+
+/* ---------- 4. 通用卡片容器（筛选区 / 表格区 / 详情区共用） ---------- */
+.panel-card {
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  background: var(--card-bg);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(10px);
+  margin-bottom: 18px;
+  overflow: hidden;
+  transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.panel-card:hover {
+  border-color: #bed7c4;
+  box-shadow: var(--card-shadow-hover);
+}
+
+.panel-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--forest-soft);
+}
+
+.panel-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--forest-text);
+  letter-spacing: 0.8px;
+}
+
+.panel-card__title .el-icon { color: var(--forest-accent); }
+
+.panel-card__hint {
+  font-size: 12px;
+  color: var(--forest-muted);
+  letter-spacing: 0.3px;
+}
+
+.panel-card__body { padding: 18px 20px; }
+.panel-card__body--flush { padding: 0; }
+
+/* 筛选区：栅格自适应，保证窄屏自动换行而不挤成一团 */
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+
+.filter-item__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--forest-muted);
+  letter-spacing: 0.4px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--forest-border);
+}
+
+/* ---------- 5. 工具条（新增/导入/批量删除等操作按钮区） ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.toolbar__spacer { flex: 1; }
+
+/* 已选提示：让用户明确"批量操作将作用于哪几条" */
+.toolbar__selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 99px;
+  background: var(--forest-soft);
+  border: 1px solid var(--forest-border);
+  color: #4f865b;
+  font-size: 12px;
+}
+
+/* ---------- 6. 森林主题表格（覆盖 Element Plus 默认灰白风） ---------- */
+.forest-table :deep(.el-table) {
+  --el-table-border-color: #e6efe9;
+  --el-table-header-bg-color: #f2f8f4;
+  --el-table-row-hover-bg-color: #f4faf6;
+  background: transparent;
+  font-size: 13px;
+}
+
+.forest-table :deep(.el-table th.el-table__cell) {
+  color: var(--forest-text);
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.forest-table :deep(.el-table td.el-table__cell) {
+  color: #3d564a;
+}
+
+/* 可点击的姓名/流水号链接：用香槟金点缀，与登录页鎏金呼应 */
+.forest-link {
+  color: var(--champagne);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px dashed rgba(174, 130, 85, 0.45);
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.forest-link:hover {
+  color: #8d6b48;
+  border-bottom-style: solid;
+}
+
+/* ---------- 7. 状态标签（把字典文本升级为语义化彩色标签） ---------- */
+.state-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.state-tag--neutral { background: #eef2f0; color: #6d8272; border: 1px solid #dfe7e2; }
+.state-tag--green   { background: #edf6ef; color: #4f865b; border: 1px solid #cfe5d5; }
+.state-tag--blue    { background: #edf4fa; color: #4c819d; border: 1px solid #d3e4ef; }
+.state-tag--gold    { background: #faf5ec; color: #a47a4f; border: 1px solid #eee0cb; }
+.state-tag--red     { background: #fdeeed; color: #c2564e; border: 1px solid #f6d9d6; }
+
+/* 空值占位：避免表格里出现刺眼的空白或 null */
+.empty-dash { color: #b3c2b8; }
+
+/* ---------- 8. 分页容器 ---------- */
+.pager-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--forest-soft);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.pager-bar :deep(.el-pagination.is-background .el-pager li) {
+  border-radius: 9px;
+}
+
+.pager-bar :deep(.el-pagination.is-background .el-pager li.is-active) {
+  background: linear-gradient(135deg, #4b7551 0%, #5c8b63 100%);
+}
+
+/* ---------- 9. 详情页专用：描述列表（替换旧的 .desc 荧光青底色块） ---------- */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0 28px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px dashed var(--forest-border);
+  min-width: 0;
+}
+
+.detail-item__label {
+  flex-shrink: 0;
+  width: 92px;
+  font-size: 12.5px;
+  color: var(--forest-muted);
+  letter-spacing: 0.4px;
+}
+
+.detail-item__value {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--forest-text);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* 整行长内容（描述/备注类）占满整行 */
+.detail-item--full { grid-column: 1 / -1; }
+
+/* ---------- 10. 详情页 Hero（含头像/标题/关键动作区） ---------- */
+.detail-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.detail-hero__avatar {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #4b7551 0%, #6e9f76 100%);
+  box-shadow: 0 8px 20px rgba(75, 117, 81, 0.28);
+  font-family: Georgia, 'Microsoft YaHei', serif;
+}
+
+.detail-hero__main { flex: 1; min-width: 200px; }
+
+.detail-hero__name {
+  margin: 0;
+  font-size: 20px;
+  color: var(--forest-text);
+  font-family: Georgia, 'Microsoft YaHei', serif;
+  letter-spacing: 1px;
+}
+
+.detail-hero__meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 7px;
+  font-size: 12.5px;
+  color: var(--forest-muted);
+}
+
+.detail-hero__actions {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+/* ---------- 11. 阶段时间轴（交易模块：把"阶段"可视化，解决功能不明显） ---------- */
+.stage-track {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  overflow-x: auto;
+  padding: 6px 2px 14px;
+}
+
+.stage-node {
+  flex: 1;
+  min-width: 92px;
+  position: relative;
+  text-align: center;
+}
+
+/* 节点间的连接线 */
+.stage-node:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 15px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: #dce8df;
+  z-index: 0;
+}
+
+.stage-node.is-done:not(:last-child)::after,
+.stage-node.is-current:not(:last-child)::after {
+  background: linear-gradient(90deg, #6e9f76, #a8cdb1);
+}
+
+.stage-node__dot {
+  position: relative;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  margin: 0 auto 9px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border: 2px solid #dce8df;
+  color: #a8bcb0;
+  transition: all 0.25s ease;
+}
+
+.stage-node.is-done .stage-node__dot {
+  background: #edf6ef;
+  border-color: #8fbf9a;
+  color: #4f865b;
+}
+
+.stage-node.is-current .stage-node__dot {
+  background: linear-gradient(135deg, #4b7551 0%, #6e9f76 100%);
+  border-color: #4b7551;
+  color: #fff;
+  box-shadow: 0 0 0 5px rgba(105, 166, 117, 0.16);
+  transform: scale(1.08);
+}
+
+.stage-node__label {
+  font-size: 12px;
+  color: var(--forest-muted);
+  letter-spacing: 0.2px;
+  line-height: 1.4;
+}
+
+.stage-node.is-current .stage-node__label {
+  color: var(--forest-text);
+  font-weight: 700;
+}
+
+/* ---------- 12. 响应式（窄屏下 hero 纵向堆叠、指标条两列） ---------- */
+@media (max-width: 768px) {
+  .module-hero { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .module-metrics { grid-template-columns: repeat(2, 1fr); }
+  .detail-hero__actions { width: 100%; }
+}

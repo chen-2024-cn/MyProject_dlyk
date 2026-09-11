@@ -1,397 +1,252 @@
 <template>
-  <div class="user-detail-container">
-    <!-- 加载中状态 -->
-    <div v-if="loading" class="loading-state">
-      <el-icon class="is-loading"><Loading /></el-icon>
-      <p>正在加载用户详情...</p>
-    </div>
+  <div class="module-shell user-detail-module" v-loading="loading" element-loading-text="正在加载账号详情…">
 
-    <!-- 成功加载状态 -->
-    <div v-else-if="UserDetail" class="detail-content">
-      <div class="user-detail-wrapper">
-        <!-- 装饰性顶部条 -->
-        <div class="card-accent"></div>
-
-        <!-- 卡片头部：头像 + 欢迎信息 + 操作按钮 -->
-        <div class="card-header">
-          <div class="user-profile">
-            <div class="avatar-wrapper">
-              <el-avatar :size="80" :style="{ backgroundColor: avatarColor }" class="user-avatar">
-                {{ userInitial }}
-              </el-avatar>
-              <span class="online-dot" :class="{ 'is-online': isOnline }"></span>
+    <template v-if="detail">
+      <!-- ============ 详情 Hero ============ -->
+      <div class="panel-card">
+        <div class="panel-card__body">
+          <div class="detail-hero">
+            <div class="detail-hero__avatar" :style="{ background: avatarGradient }">
+              {{ userInitial }}
             </div>
-            <div class="user-info">
-              <h2 class="user-name">{{ UserDetail.name || '未设置姓名' }}</h2>
-              <div class="user-meta">
-                <el-tag size="small" type="info" effect="plain">ID: {{ UserDetail.id }}</el-tag>
-                <el-tag size="small" type="success" effect="plain" v-if="isActive">已激活</el-tag>
-                <el-tag size="small" type="danger" effect="plain" v-else>未激活</el-tag>
+
+            <div class="detail-hero__main">
+              <h3 class="detail-hero__name">
+                {{ detail.name || '未设置姓名' }}
+                <span v-if="detail.id === currentUserId" class="state-tag state-tag--gold self-badge">本人账号</span>
+              </h3>
+
+              <div class="detail-hero__meta">
+                <span><el-icon :size="12"><User /></el-icon> 账号：{{ detail.loginAct || '—' }}</span>
+                <span><el-icon :size="12"><Iphone /></el-icon> {{ detail.phone || '—' }}</span>
+                <span><el-icon :size="12"><Message /></el-icon> {{ detail.email || '—' }}</span>
+                <span v-if="onlineText"><el-icon :size="12"><Clock /></el-icon> {{ onlineText }}</span>
               </div>
+
+              <!-- 账号状态标签组：启用/锁定/账期/密码四态一眼可辨 -->
+              <div class="hero-tags">
+                <span class="state-tag" :class="detail.accountEnabled === 1 ? 'state-tag--green' : 'state-tag--red'">
+                  {{ detail.accountEnabled === 1 ? '已启用' : '已禁用' }}
+                </span>
+                <span class="state-tag" :class="detail.accountNoLocked === 1 ? 'state-tag--neutral' : 'state-tag--gold'">
+                  {{ detail.accountNoLocked === 1 ? '未锁定' : '已锁定' }}
+                </span>
+                <span class="state-tag" :class="detail.accountNoExpired === 1 ? 'state-tag--neutral' : 'state-tag--red'">
+                  {{ detail.accountNoExpired === 1 ? '账期正常' : '账期已过' }}
+                </span>
+                <span class="state-tag" :class="detail.credentialsNoExpired === 1 ? 'state-tag--neutral' : 'state-tag--gold'">
+                  {{ detail.credentialsNoExpired === 1 ? '密码正常' : '密码已过期' }}
+                </span>
+                <span v-for="r in roleList" :key="r" class="state-tag state-tag--blue">{{ r }}</span>
+                <span v-if="!roleList.length" class="state-tag state-tag--neutral">未分配角色</span>
+              </div>
+            </div>
+
+            <div class="detail-hero__actions">
+              <el-button :icon="Back" @click="goBack">返回列表</el-button>
             </div>
           </div>
-          <div class="header-actions">
-            <el-button @click="goBack" :icon="ArrowLeft" size="default" round>返回</el-button>
-          </div>
-        </div>
-
-        <!-- 信息描述区域 -->
-        <div class="info-section">
-          <h3 class="section-title">
-            <el-icon><User /></el-icon>
-            详细信息
-          </h3>
-          <el-descriptions :column="2" border class="user-descriptions">
-            <el-descriptions-item label="账号">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Monitor /></el-icon>
-                  <span>账号</span>
-                </div>
-              </template>
-              {{ UserDetail.loginAct || '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="姓名">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><User /></el-icon>
-                  <span>姓名</span>
-                </div>
-              </template>
-              {{ UserDetail.name || '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="手机">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Iphone /></el-icon>
-                  <span>手机</span>
-                </div>
-              </template>
-              {{ UserDetail.phone || '-' }}
-            </el-descriptions-item>
-            <el-descriptions-item label="邮箱">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Message /></el-icon>
-                  <span>邮箱</span>
-                </div>
-              </template>
-              {{ UserDetail.email || '-' }}
-            </el-descriptions-item>
-
-            <!-- 状态字段使用彩色标签 -->
-            <el-descriptions-item label="账号状态">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Lock /></el-icon>
-                  <span>账号状态</span>
-                </div>
-              </template>
-              <el-tag :type="accountExpiredStatus.type" size="small" effect="light">
-                {{ accountExpiredStatus.text }}
-              </el-tag>
-            </el-descriptions-item>
-
-            <el-descriptions-item label="密码状态">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Key /></el-icon>
-                  <span>密码状态</span>
-                </div>
-              </template>
-              <el-tag :type="credentialsExpiredStatus.type" size="small" effect="light">
-                {{ credentialsExpiredStatus.text }}
-              </el-tag>
-            </el-descriptions-item>
-
-            <el-descriptions-item label="锁定状态">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Lock /></el-icon>
-                  <span>锁定状态</span>
-                </div>
-              </template>
-              <el-tag :type="lockedStatus.type" size="small" effect="light">
-                {{ lockedStatus.text }}
-              </el-tag>
-            </el-descriptions-item>
-
-            <el-descriptions-item label="启用状态">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><CircleCheck /></el-icon>
-                  <span>启用状态</span>
-                </div>
-              </template>
-              <el-tag :type="enabledStatus.type" size="small" effect="light">
-                {{ enabledStatus.text }}
-              </el-tag>
-            </el-descriptions-item>
-
-            <el-descriptions-item label="创始人">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><UserFilled /></el-icon>
-                  <span>创始人</span>
-                </div>
-              </template>
-              {{ UserDetail.createByUser?.name || '-' }}
-            </el-descriptions-item>
-
-            <el-descriptions-item label="编辑人">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Edit /></el-icon>
-                  <span>编辑人</span>
-                </div>
-              </template>
-              {{ UserDetail.editByUser?.name || '-' }}
-            </el-descriptions-item>
-
-            <el-descriptions-item label="编辑时间">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Clock /></el-icon>
-                  <span>编辑时间</span>
-                </div>
-              </template>
-              {{ UserDetail.editTime ? formatDate(UserDetail.editTime) : '-' }}
-            </el-descriptions-item>
-
-            <el-descriptions-item label="最近登录">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Timer /></el-icon>
-                  <span>最近登录</span>
-                </div>
-              </template>
-              {{ UserDetail.lastLoginTime ? formatDate(UserDetail.lastLoginTime) : '-' }}
-            </el-descriptions-item>
-
-            <el-descriptions-item label="角色" :span="2">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Avatar /></el-icon>
-                  <span>角色</span>
-                </div>
-              </template>
-              <div class="role-list">
-                <el-tag v-for="(role, idx) in roleList" :key="idx" size="small" type="info" effect="plain">
-                  {{ role }}
-                </el-tag>
-                <span v-if="!roleList.length">-</span>
-              </div>
-            </el-descriptions-item>
-
-            <el-descriptions-item label="创建时间" :span="2">
-              <template #label>
-                <div class="label-with-icon">
-                  <el-icon><Calendar /></el-icon>
-                  <span>创建时间</span>
-                </div>
-              </template>
-              <div class="time-info">
-                {{ formatDate(UserDetail.createTime) }}
-                <span class="duration-badge">{{ getDuration(UserDetail.createTime) }}</span>
-              </div>
-            </el-descriptions-item>
-          </el-descriptions>
-        </div>
-
-        <!-- 底部装饰信息 -->
-        <div class="card-footer">
-          <span class="footer-text">
-            <el-icon><InfoFilled /></el-icon>
-            系统记录 · 信息真实有效
-          </span>
         </div>
       </div>
-    </div>
+
+      <!-- ============ 账号档案 ============ -->
+      <div class="panel-card">
+        <div class="panel-card__header">
+          <div class="panel-card__title">
+            <el-icon :size="16"><Document /></el-icon>
+            <span>账号档案</span>
+          </div>
+          <span class="panel-card__hint">登录身份、联系方式与授权范围</span>
+        </div>
+        <div class="panel-card__body">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-item__label">用户 ID</span>
+              <span class="detail-item__value">{{ detail.id }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">登录账号</span>
+              <span class="detail-item__value">{{ detail.loginAct || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">姓名</span>
+              <span class="detail-item__value">{{ detail.name || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">手机号</span>
+              <span class="detail-item__value">{{ detail.phone || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">邮箱</span>
+              <span class="detail-item__value">{{ detail.email || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">授权角色</span>
+              <span class="detail-item__value">
+                <template v-if="roleList.length">
+                  <el-tag v-for="r in roleList" :key="r" size="small" effect="plain" class="role-chip">{{ r }}</el-tag>
+                </template>
+                <span v-else class="empty-dash">未分配</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 生命周期 ============ -->
+      <div class="panel-card">
+        <div class="panel-card__header">
+          <div class="panel-card__title">
+            <el-icon :size="16"><Timer /></el-icon>
+            <span>账号生命周期</span>
+          </div>
+          <span class="panel-card__hint">创建、编辑与登录轨迹</span>
+        </div>
+        <div class="panel-card__body">
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-item__label">创建时间</span>
+              <span class="detail-item__value">
+                {{ formatDate(detail.createTime) }}
+                <span v-if="durationText" class="duration-badge">{{ durationText }}</span>
+              </span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">创建人</span>
+              <span class="detail-item__value">{{ detail.createByUser?.name || '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">最近编辑</span>
+              <span class="detail-item__value">{{ detail.editTime ? formatDate(detail.editTime) : '—' }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">编辑人</span>
+              <span class="detail-item__value">{{ detail.editByUser?.name || '—' }}</span>
+            </div>
+            <div class="detail-item detail-item--full">
+              <span class="detail-item__label">最近登录</span>
+              <span class="detail-item__value">{{ detail.lastLoginTime ? formatDate(detail.lastLoginTime) : '从未登录' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- 无数据状态 -->
-    <div v-else class="empty-state">
-      <el-empty description="未找到用户信息" :image-size="120">
-        <el-button type="primary" @click="goBack" :icon="ArrowLeft">返回首页</el-button>
-      </el-empty>
+    <div v-if="!loading && !detail" class="panel-card">
+      <div class="empty-state">
+        <el-icon :size="44"><FolderOpened /></el-icon>
+        <p>未找到该账号信息，可能已被删除</p>
+        <el-button size="small" type="primary" :icon="Back" @click="goBack">返回列表</el-button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { onMounted, ref, computed } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { doGet } from "@/http/httpRequest.js";
+import { goBack, getPermissionCache } from "@/util/util.js";
+import { ElMessage } from "element-plus";
 import {
-  Loading,
-  ArrowLeft,
-  User,
-  Monitor,
-  Iphone,
-  Message,
-  Calendar,
-  Lock,
-  Key,
-  CircleCheck,
-  UserFilled,
-  Edit,
-  Clock,
-  Timer,
-  Avatar,
-  InfoFilled,
+  User, Iphone, Message, Clock, Timer, Document, Back, FolderOpened
 } from "@element-plus/icons-vue";
 
 const route = useRoute();
-const router = useRouter();
-const UserDetail = ref(
-    {
-      createByUser : {},
-      editByUser : {}
-    }
-);
+const detail = ref(null);
 const loading = ref(true);
 
-// 返回上一页
-const goBack = () => {
-  router.go(-1);
-};
+// 当前登录人（用于「本人账号」标记）
+const currentUserId = computed(() => getPermissionCache()?.userId ?? null);
 
-// 格式化日期
+// 格式化日期时间（后端 Jackson 已输出 yyyy-MM-dd HH:mm:ss，截取到分即可）
 const formatDate = (dateTime) => {
-  if (!dateTime) return '-';
-  try {
-    const date = new Date(dateTime);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-  } catch (e) {
-    return dateTime;
-  }
+  if (!dateTime) return '—';
+  return String(dateTime).slice(0, 16);
 };
 
-// 计算注册时长
-const getDuration = (createTime) => {
-  if (!createTime) return '';
-  const now = new Date();
-  const create = new Date(createTime);
-  const diffDays = Math.floor((now - create) / (1000 * 60 * 60 * 24));
-  if (diffDays < 0) return '';
-  if (diffDays === 0) return '今日注册';
-  if (diffDays < 30) return `已注册 ${diffDays} 天`;
-  if (diffDays < 365) return `已注册 ${Math.floor(diffDays / 30)} 个月`;
-  return `已注册 ${Math.floor(diffDays / 365)} 年`;
-};
-
-// 头像首字母
+// 头像首字
 const userInitial = computed(() => {
-  if (UserDetail.value) {
-    const name = UserDetail.value.name;
-    const loginAct = UserDetail.value.loginAct;
-    if (name && name.trim()) {
-      return name.charAt(0).toUpperCase();
-    }
-    if (loginAct && loginAct.trim()) {
-      return loginAct.charAt(0).toUpperCase();
-    }
-  }
+  const name = detail.value?.name;
+  const act = detail.value?.loginAct;
+  if (name && name.trim()) return name.trim().charAt(0).toUpperCase();
+  if (act && act.trim()) return act.trim().charAt(0).toUpperCase();
   return "U";
 });
 
-// 头像背景色
-const avatarColor = computed(() => {
-  if (UserDetail.value) {
-    const str = UserDetail.value.id || UserDetail.value.loginAct || "default";
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const hue = Math.abs(hash % 360);
-    return `hsl(${hue}, 70%, 60%)`;
+/**
+ * 头像底色：由 ID/账号哈希出森林-香槟色带内的色相，保持与全站设计语言一致。
+ * 旧版用 hsl(hue,70%,60%) 随机全色相（蓝紫红都可能出现），与墨绿主题割裂。
+ */
+const avatarGradient = computed(() => {
+  const str = String(detail.value?.id || detail.value?.loginAct || "default");
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return "#909399";
+  // 色相限制在绿色(95°)~香槟色(38°)区间内往复，保证任何账号头像都不出主题色系
+  const hue = 38 + (Math.abs(hash) % 60);
+  return `linear-gradient(135deg, hsl(${hue}, 32%, 38%), hsl(${hue + 20}, 38%, 52%))`;
 });
 
-// 在线状态：根据最近登录时间判断（今日登录为在线）
-const isOnline = computed(() => {
-  if (!UserDetail.value?.lastLoginTime) return false;
-  const last = new Date(UserDetail.value.lastLoginTime);
-  const today = new Date();
-  return last.toDateString() === today.toDateString();
+// 在线状态描述
+const onlineText = computed(() => {
+  const last = detail.value?.lastLoginTime;
+  if (!last) return '';
+  const t = new Date(String(last).replace(' ', 'T'));
+  if (isNaN(t.getTime())) return '';
+  if (t.toDateString() === new Date().toDateString()) return '今日有登录';
+  const days = Math.floor((Date.now() - t.getTime()) / 86400000);
+  if (days <= 7) return `${days} 天前登录`;
+  return `上次登录 ${formatDate(last).slice(0, 10)}`;
 });
 
-// 账号是否激活（简单用账号未过期且未锁定且启用综合判断）
-const isActive = computed(() => {
-  if (!UserDetail.value) return false;
-  const notExpired = UserDetail.value.accountNoExpired === 1;
-  const notLocked = UserDetail.value.accountNoLocked === 1;
-  const enabled = UserDetail.value.accountNoLocked === 1; // 注意原代码中启用状态用了accountNoLocked，这里沿用
-  return notExpired && notLocked && enabled;
+// 注册时长徽章
+const durationText = computed(() => {
+  const createTime = detail.value?.createTime;
+  if (!createTime) return '';
+  const create = new Date(String(createTime).replace(' ', 'T'));
+  if (isNaN(create.getTime())) return '';
+  const diffDays = Math.floor((Date.now() - create.getTime()) / 86400000);
+  if (diffDays < 0) return '';
+  if (diffDays === 0) return '今日添加';
+  if (diffDays < 30) return `已存在 ${diffDays} 天`;
+  if (diffDays < 365) return `已存在 ${Math.floor(diffDays / 30)} 个月`;
+  return `已存在 ${Math.floor(diffDays / 365)} 年`;
 });
 
-// 状态映射
-const accountExpiredStatus = computed(() => {
-  const val = UserDetail.value?.accountNoExpired;
-  if (val === 1) return { text: '正常', type: 'success' };
-  if (val === 0) return { text: '已过期', type: 'danger' };
-  return { text: '-', type: 'info' };
-});
-
-const credentialsExpiredStatus = computed(() => {
-  const val = UserDetail.value?.credentialsNoExpired;
-  if (val === 1) return { text: '正常', type: 'success' };
-  if (val === 0) return { text: '已过期', type: 'danger' };
-  return { text: '-', type: 'info' };
-});
-
-const lockedStatus = computed(() => {
-  const val = UserDetail.value?.accountNoLocked;
-  if (val === 1) return { text: '未锁定', type: 'success' };
-  if (val === 0) return { text: '已锁定', type: 'danger' };
-  return { text: '-', type: 'info' };
-});
-
-const enabledStatus = computed(() => {
-  // 原代码中用accountNoLocked作为启用标志，保持逻辑一致
-  const val = UserDetail.value?.accountNoLocked;
-  if (val === 1) return { text: '已启用', type: 'success' };
-  if (val === 0) return { text: '禁用', type: 'danger' };
-  return { text: '-', type: 'info' };
-});
-
-// 角色列表（假设后端返回的是数组或逗号分隔字符串）
+// 角色列表（getUserById 实时查库返回 roleList 字符串数组）
 const roleList = computed(() => {
-  const roles = UserDetail.value?.roleList;
+  const roles = detail.value?.roleList;
   if (!roles) return [];
   if (Array.isArray(roles)) return roles;
-  if (typeof roles === 'string') return roles.split(',').map(r => r.trim());
+  if (typeof roles === 'string') return roles.split(',').map(r => r.trim()).filter(Boolean);
   return [];
 });
 
-// 加载用户详情
 const loadUserDetail = async () => {
-  let id = route.params.id;
+  const id = route.params.id;
   if (!id) {
-    console.error('用户 ID 不能为空');
+    ElMessage.error('缺少用户 ID 参数');
     loading.value = false;
     return;
   }
   loading.value = true;
   try {
     const response = await doGet("/api/user/" + id, {});
-    console.log("UserDetailView:", response);
+    // 【安全修复】旧版 console.log("UserDetailView:", response) 打印完整用户对象
+    // （改造前含 BCrypt 密码哈希与全量权限清单），已移除
     if (response.data.code === 200) {
-      UserDetail.value = response.data.data;
+      detail.value = response.data.data;
     } else {
-      console.error('获取用户详情失败:', response.data.message);
-      UserDetail.value = null;
+      ElMessage.error(response.data.msg || '获取账号详情失败');
+      detail.value = null;
     }
   } catch (error) {
-    console.error('请求异常:', error);
-    UserDetail.value = null;
+    console.error('请求账号详情异常:', error);
+    ElMessage.error('获取账号详情失败');
+    detail.value = null;
   } finally {
     loading.value = false;
   }
@@ -403,302 +258,49 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 全局动画 */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@import "@/assets/module-theme.css";
+
+.user-detail-module {
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
-.user-detail-container {
-  min-height: 50vh;
-  padding: 0;
-  background: transparent;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-}
-
-/* 加载状态 */
-.loading-state {
+.hero-tags {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  background: transparent;
-  color: #3b82f6;
-  font-size: 16px;
-  animation: fadeInUp 0.5s ease;
-}
-.loading-state .el-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-}
-.loading-state p {
-  margin: 0;
-  color: #4b5563;
-}
-
-/* 用户详情包装器 */
-.user-detail-wrapper {
-  max-width: 1000px;
-  margin: 0 auto;
-  overflow: hidden;
-}
-
-/* 装饰顶条 */
-.card-accent {
-  height: 4px;
-  background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b);
-  border-radius: 2px;
-  margin-bottom: 20px;
-}
-
-/* 头部结构 */
-.card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0 20px 0;
-  background: transparent;
-  flex-wrap: wrap;
-  gap: 20px;
-  border-bottom: 1px dashed #e2e8f0;
-}
-.user-profile {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-}
-.avatar-wrapper {
-  position: relative;
-}
-.user-avatar {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.12);
-  transition: transform 0.2s;
-  font-weight: 600;
-  font-size: 32px;
-}
-.user-avatar:hover {
-  transform: scale(1.03);
-}
-.online-dot {
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  width: 16px;
-  height: 16px;
-  background-color: #9ca3af;
-  border: 2px solid #ffffff;
-  border-radius: 50%;
-  transition: background-color 0.2s;
-}
-.online-dot.is-online {
-  background-color: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
-}
-.user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.user-name {
-  margin: 0;
-  font-size: 26px;
-  font-weight: 700;
-  color: #1f2937;
-  letter-spacing: -0.3px;
-}
-.user-meta {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.header-actions .el-button {
-  border-radius: 40px;
-  padding: 8px 24px;
-  font-weight: 500;
-  transition: all 0.2s;
-  background: #f3f4f6;
-  border-color: #e5e7eb;
-  color: #374151;
-}
-.header-actions .el-button:hover {
-  background: #e5e7eb;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-/* 信息区域 */
-.info-section {
-  padding: 24px 0;
-  background: transparent;
-}
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 20px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 8px 0 24px 0;
-  padding-left: 12px;
-  border-left: 5px solid #3b82f6;
-}
-.section-title .el-icon {
-  font-size: 22px;
-  color: #3b82f6;
-}
-
-/* 描述列表样式 */
-.user-descriptions {
-  margin-bottom: 16px;
-  border-radius: 20px;
-  overflow: hidden;
-  border: 1px solid #edf2f7;
-}
-:deep(.el-descriptions__header) {
-  display: none;
-}
-:deep(.el-descriptions__body) {
-  background-color: #ffffff;
-}
-:deep(.el-descriptions__table) {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-:deep(.el-descriptions__cell) {
-  padding: 16px 20px;
-}
-:deep(.el-descriptions__label) {
-  background-color: #fafcff;
-  font-weight: 600;
-  color: #334155;
-  width: 140px;
-  border-right: 1px solid #edf2f7;
-}
-:deep(.el-descriptions__content) {
-  color: #1e293b;
-  font-weight: 500;
-}
-.label-with-icon {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.label-with-icon .el-icon {
-  font-size: 18px;
-  color: #5b6e8c;
-}
-.role-list {
-  display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-}
-.time-info {
-  display: flex;
-  align-items: center;
-  gap: 14px;
   flex-wrap: wrap;
+  margin-top: 10px;
 }
+
+.self-badge {
+  vertical-align: 3px;
+  margin-left: 8px;
+  transform: scale(0.86);
+}
+
+.role-chip { margin: 1px 4px 1px 0; }
+
 .duration-badge {
-  background: #eef2ff;
-  color: #3b82f6;
-  padding: 4px 12px;
+  display: inline-block;
+  margin-left: 10px;
+  background: var(--forest-soft);
+  color: #4f865b;
+  border: 1px solid var(--forest-border);
+  padding: 1px 10px;
   border-radius: 40px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.3px;
 }
 
-/* 卡片底部 */
-.card-footer {
-  padding: 16px 0 0 0;
-  border-top: 1px solid #f0f2f5;
-  text-align: center;
-  background: transparent;
-}
-.footer-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #6b7280;
-}
-.footer-text .el-icon {
-  font-size: 14px;
-}
-
-/* 空状态样式 */
+/* 空状态 */
 .empty-state {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
   align-items: center;
-  min-height: 400px;
-  background: transparent;
-  border-radius: 8px;
-  animation: fadeInUp 0.5s ease;
+  gap: 10px;
+  padding: 70px 0;
+  color: #93a89b;
+  text-align: center;
 }
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .user-detail-container {
-    padding: 0;
-  }
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 10px 0;
-  }
-  .user-profile {
-    width: 100%;
-  }
-  .header-actions {
-    width: 100%;
-  }
-  .header-actions .el-button {
-    width: 100%;
-    justify-content: center;
-  }
-  .info-section {
-    padding: 16px 0;
-  }
-  .section-title {
-    font-size: 18px;
-    margin-bottom: 20px;
-  }
-  :deep(.el-descriptions__cell) {
-    padding: 12px 16px;
-  }
-  :deep(.el-descriptions__label) {
-    width: 100px;
-  }
-  .user-name {
-    font-size: 22px;
-  }
-  .user-avatar {
-    width: 64px;
-    height: 64px;
-    line-height: 64px;
-    font-size: 26px;
-  }
-  .online-dot {
-    width: 14px;
-    height: 14px;
-    bottom: 2px;
-    right: 2px;
-  }
-  .duration-badge {
-    font-size: 10px;
-  }
-  .time-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-}
+.empty-state p { margin: 0; font-size: 13px; letter-spacing: 0.4px; }
 </style>

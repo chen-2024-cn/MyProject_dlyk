@@ -12,7 +12,13 @@ import java.util.Map;
 
 public interface TranService {
 
-    PageInfo<TTran> getTranByPage(Integer current, Integer customerId, java.math.BigDecimal money);
+    /**
+     * 交易分页查询。
+     *
+     * @param current 页码（从 1 开始）
+     * @param query   筛选条件（可为 null）——客户/阶段/流水号/金额阈值
+     */
+    PageInfo<TTran> getTranByPage(Integer current, TranQuery query);
 
     int saveTran(TranQuery tranQuery);
 

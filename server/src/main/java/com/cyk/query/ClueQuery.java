@@ -95,6 +95,20 @@ public class ClueQuery extends BaseQuery {
     private Integer state;
 
     /**
+     * 【新增筛选项】线索是否已转化为客户。
+     *
+     * <p>业务背景：{@code state = -1} 是「已转客户」的业务魔法值（非字典项），
+     * 销售日常最关心的分群就是「还在跟进的线索」与「已成功转化的线索」。
+     * 因此单独提供一个语义化布尔筛选，避免前端直接暴露 -1 这个魔法值：</p>
+     * <ul>
+     *   <li>{@code true}  → 仅查已转化（state = -1）</li>
+     *   <li>{@code false} → 仅查未转化（state != -1）</li>
+     *   <li>{@code null}  → 不限（全量）</li>
+     * </ul>
+     */
+    private Boolean converted;
+
+    /**
      * 线索来源
      */
     private Integer source;

@@ -430,6 +430,33 @@ provide('reload', reload);//生产者
 .side-menu {
   border-right: none;
   flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* 优雅极简滚动条美化 */
+.side-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.side-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar .side-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
+
+.sidebar:hover .side-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.sidebar:hover .side-menu::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 /* 内容区域容器 */

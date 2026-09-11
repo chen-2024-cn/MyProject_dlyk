@@ -110,6 +110,29 @@ const loadTran = () => {
   }
 }
 
+/**
+ * 新增模式下的客户预填。
+ *
+ * 【修复的功能缺陷】客户详情页的“为该客户创建交易”旧版跳的是通用新增页，
+ * 完全没带 customerId，用户还得在下拉里把刚才那个客户再找一遍——既然入口已经
+ * 明确了客户，就不应让人重复选择。
+ *
+ * 【为何限定在新增模式】编辑模式（有 route.params.id）下 loadTran 会用服务端数据覆盖表单，
+ * 两个异步请求存在竞态；只在无 params.id 时写 query 参数，才能确保预填不会覆盖交易原始客户。
+ */
+const applyCustomerPrefill = () => {
+  // 编辑模式不预填，以免与服务端数据产生竞态覆盖
+  if (route.params.id) return
+  const cid = route.query.customerId
+  // 必须转 Number：URL 查询参数永远是字符串，与下拉选项的 id 类型不一致会导致回显失败
+  if (cid) {
+    const numericId = Number(cid)
+    if (!isNaN(numericId)) {
+      tranQuery.customerId = numericId
+    }
+  }
+}
+
 const goBack = () => { window.history.back() }
 
 const submitTran = async () => {
@@ -136,6 +159,7 @@ const submitTran = async () => {
 onMounted(() => {
   loadCustomers()
   loadTran()
+  applyCustomerPrefill()
 })
 </script>
 

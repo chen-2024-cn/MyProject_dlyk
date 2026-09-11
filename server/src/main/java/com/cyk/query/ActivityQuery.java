@@ -20,4 +20,12 @@ public class ActivityQuery extends BaseQuery{
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date createTime;
 
+    /**
+     * 【修复的既有缺陷】活动描述。
+     * 原 ActivityQuery 缺少此字段，前端新增/编辑填写的 description 在参数绑定阶段即被丢弃，
+     * 再叠加 Service 层 insert/edit 未 setDescription，导致活动描述无论如何都存不进库
+     * （接口实测新建活动后 description 恒为空）。补齐该字段并贯通持久化链路。
+     */
+    private String description;
+
 }

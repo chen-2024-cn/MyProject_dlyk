@@ -27,6 +27,19 @@ public class DicTypeController {
         return R.OK(pageInfo);
     }
 
+    /**
+     * 全部字典类型（不分页，带每类字典值数量）。
+     *
+     * <p>供「字典类型」目录总览与「字典数据」维护页的类型选择器共用。
+     * 权限放宽为拥有 dictype:list 或 dicvalue:list 任一即可——两个菜单分属不同权限组，
+     * 只授予字典数据权限的用户也应能在维护页的类型下拉中看到类型列表。</p>
+     */
+    @PreAuthorize("hasAnyAuthority('dictype:list','dicvalue:list')")
+    @GetMapping("/api/dictypes/all")
+    public R allDicTypes() {
+        return R.OK(dicTypeService.getAllTypes());
+    }
+
     @PreAuthorize("hasAuthority('dictype:add')")
     @PostMapping("/api/dictypes")
     public R addDicType(DicTypeQuery query) {

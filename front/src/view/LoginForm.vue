@@ -66,7 +66,9 @@
                   class="journey-form"
                 >
                   <!-- 账号输入 -->
-                  <el-form-item prop="account">
+                  <!-- 【修复】prop 必须等于 loginRules 的键名（loginAct），
+                       旧值 "account" 与规则键不匹配，导致必填/长度校验永不触发 -->
+                  <el-form-item prop="loginAct">
                     <el-input
                       v-model="loginForm.loginAct"
                       placeholder="用户名/邮箱"
@@ -79,7 +81,8 @@
                   </el-form-item>
 
                   <!-- 密码输入 -->
-                  <el-form-item prop="password">
+                  <!-- 【修复】prop 必须等于 loginRules 的键名（loginPwd），旧值 "password" 不匹配 -->
+                  <el-form-item prop="loginPwd">
                     <el-input
                       v-model="loginForm.loginPwd"
                       type="password"
@@ -473,7 +476,6 @@ const freeLogin = async () => {
   const token = window.localStorage.getItem(getTokenName());
   if (token) {
     const response = await doGet("/api/login/free", {});
-    console.log('response响应值为：' , response);
 
     if (response.data.code === 200 ) {
       window.location.href = "/dashboard";
@@ -492,15 +494,18 @@ const handleLogin = async () => {
     loginPwd: loginForm.loginPwd,
     rememberMe: rememberMe.value
   }
-  console.log('发送的登录参数:', requestData)
+  // 【安全修复】旧版此处 console.log 直接打印明文密码与登录响应（含 JWT），
+  // 任何能看到控制台的人（共享机器/截图/浏览器插件）都能获取凭证，已彻底移除。
 
   const response = await doPost('/api/login', requestData)
-  console.log('后台用户信息', response)
 
   if (response.data.code === 200) {
-    ElMessage.success('登录成功！')
-    ElMessage.success("你好 " + response.data.data.loginAct)
-    removeToken();
+    // 【修复】后端登录成功时 R.OK(jwt) 的 data 是 JWT 字符串本身，并非用户对象；
+    // 旧版读取 response.data.data.loginAct 恒为 undefined，界面弹"你好 undefined"。
+    // 此处不再依赖登录响应里的用户名（它本就不在响应中），改为友好欢迎语；
+    // 真实用户名在跳转后由 DashboardView 调 /api/login/info 获取并展示。
+    ElMessage.success('登录成功，欢迎回来！')
+    removeToken(); // 内部已连带清除上一个账号的权限缓存，防串号
     if (rememberMe.value === true) {
       window.localStorage.setItem(getTokenName(), response.data.data);
     } else {

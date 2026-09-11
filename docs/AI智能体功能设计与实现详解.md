@@ -388,7 +388,7 @@ public String updateUserPermission(
 
 ### 4.1 订单实体与状态机
 
-**文件**：`model/TAiPaymentOrder.java` + `db/ai_premium_schema.sql`
+**文件**：`model/TAiPaymentOrder.java` + `db/ApexSales.sql`（建表已并入全量结构脚本）
 
 ```java
 public class TAiPaymentOrder implements Serializable {
@@ -471,7 +471,7 @@ public R payOrder(Integer userId, String orderNo) {
 
 - **付费墙判定条件**：`status=1 AND expire_time > NOW()`（点查取 `MAX(expire_time)`，续费叠加自然取最晚到期者）；
 - **缓存 TTL 动态对齐**：正缓存 TTL = DB 剩余有效期（`calcGrantTtlSeconds`），两侧到期语义完全一致；
-- **存量迁移**：`db/ai_premium_migration_v2_expire_time.sql`（加列 + 按 paid_time/create_time 回填存量订单）。
+- **存量迁移**：原 `ai_premium_migration_v2_expire_time.sql`（加列 + 回填）已合并入 `db/ApexSales.sql` 的 `t_ai_payment_order` 建表定义（表已含 `expire_time` 字段）。
 
 #### 4.3.2 写路径（开通）——事务提交后才写缓存
 
@@ -532,7 +532,7 @@ public void grantAbility(Integer userId, AiAbility ability) {
 
 任务级 `try/catch`：Redis/DB 故障时跳过本轮、下轮重试，绝不影响调度线程；仅实际纠偏时输出 WARN 日志（附带"请核查订单表变更来源"提示，便于回溯谁动了数据库），平稳运行无日志噪音。
 
-> **手工改库后的生效时间**：改完数据库最长等一个对账周期（默认 5 分钟）Redis 自动收敛；等不及可手动删 key：`redis-cli -a 123456 DEL dlyk:ai:premium:{userId}:{abilityKey}`（正缓存）或加 `:deny` 后缀（负缓存）。
+> **手工改库后的生效时间**：改完数据库最长等一个对账周期（默认 5 分钟）Redis 自动收敛；等不及可手动删 key：`redis-cli -a "$REDIS_PASSWORD" DEL dlyk:ai:premium:{userId}:{abilityKey}`（正缓存）或加 `:deny` 后缀（负缓存）。
 > **注意**：手工把订单改成已支付时必须同步维护 `expire_time`（如 `DATE_ADD(NOW(), INTERVAL 30 DAY)`），否则付费墙按"无有效开通"处理——这是 DB 作为唯一事实来源的直接体现。
 
 #### 4.3.5 设计权衡（为什么不用更强一致方案）
@@ -668,7 +668,7 @@ const buyAbility = async (ab) => {
 
 ## 八、部署与运行步骤
 
-1. **建表**：执行 `server/db/ai_premium_schema.sql` 创建 `t_ai_payment_order` 订单表。
+1. **建库 + 导入数据**：先执行 `server/db/ApexSales.sql`（纯结构，19 张表），再执行 `server/db/ApexSales_data.sql`（随机生成的测试假数据，所有账号登录密码统一 `123456`，管理员 `admin/123456`）。
 2. **启动**：`mvnw spring-boot:run`（后端）+ `npm run dev`（前端）。
 3. **体验**：
    - 用**管理员账号**登录进入 AI 页 → 自动切换「管理驾驶舱」；

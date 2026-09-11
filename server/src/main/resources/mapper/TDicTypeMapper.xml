@@ -6,6 +6,8 @@
     <result column="type_code" jdbcType="VARCHAR" property="typeCode" />
     <result column="type_name" jdbcType="VARCHAR" property="typeName" />
     <result column="remark" jdbcType="VARCHAR" property="remark" />
+    <!-- value_count 仅 selectAllTypes 查询返回；其余查询结果集不含该列时映射为 null，无副作用 -->
+    <result column="value_count" jdbcType="INTEGER" property="valueCount" />
   </resultMap>
   <resultMap id="DicTypeResultMap" type="com.cyk.model.TDicType">
     <id column="id" jdbcType="INTEGER" property="id" />
@@ -16,6 +18,17 @@
     <collection property="dicValueList" ofType="com.cyk.model.TDicValue">
       <id column="dicId" jdbcType="INTEGER" property="id" />
       <result column="dicName" jdbcType="VARCHAR" property="typeValue" />
+      <!--
+        【修复的既有缺陷】order 字段此前既没进 SQL 也没进 resultMap，导致接口下发的
+        字典值 order 恒为 null。对有序字典（如交易阶段）后果是双向致命的：
+          ① 前端按 order 排序退化为按 id 排序，阶段时间轴出现 01→06→04→02→03→05 的错序；
+          ② 相邻阶段判定 order-1 / order+1 变成 null-1 = NaN，永不相等，
+             交易详情页的「推进/回退阶段」按钮从未渲染过。
+        remark 与 typeCode 一并补齐，保持与 TDicValue 模型字段完整对应。
+      -->
+      <result column="dicOrder" jdbcType="INTEGER" property="order" />
+      <result column="dicCode" jdbcType="VARCHAR" property="typeCode" />
+      <result column="dicRemark" jdbcType="VARCHAR" property="remark" />
     </collection>
   </resultMap>
   <sql id="Base_Column_List">
@@ -31,8 +44,13 @@
     <select id="selectByAll" resultMap="DicTypeResultMap" >
         select
             tdt.*,
-            tdv.id dicId, tdv.type_value dicName
+            tdv.id dicId, tdv.type_value dicName,
+            <!-- order 是 MySQL 保留字，必须用反引号包裹；别名为 dicOrder 与 resultMap 对应 -->
+            tdv.`order` dicOrder, tdv.type_code dicCode, tdv.remark dicRemark
             from t_dic_type tdt left join t_dic_value tdv on tdt.type_code = tdv.type_code
+            <!-- 让字典值在源头就按业务流程顺序返回（阶段、状态类字典的 order 即业务序号），
+                 而非依赖调用方各自排序；id 作为次级键保证 order 相同时结果稳定 -->
+            order by tdt.id, tdv.`order`, tdv.id
     </select>
 
     <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
@@ -93,6 +111,15 @@
     where id = #{id,jdbcType=INTEGER}
   </update>
 
+  <!-- 全量类型 + 每类字典值数量（相关子查询）。order by id 保证目录稳定顺序 -->
+  <select id="selectAllTypes" resultMap="BaseResultMap">
+    select
+    <include refid="Base_Column_List" />,
+    (select count(0) from t_dic_value v where v.type_code = t_dic_type.type_code) as value_count
+    from t_dic_type
+    order by id
+  </select>
+
   <select id="selectDicTypeByPage" parameterType="com.cyk.query.DicTypeQuery" resultMap="BaseResultMap">
     select
     <include refid="Base_Column_List" />
@@ -105,5 +132,14 @@
       and type_name like concat('%', #{typeName}, '%')
     </if>
     order by id
+  </select>
+
+  <!-- excludeId 为空时统计该 code 全部行数（新增查重）；不为空时排除自身 id（编辑查重） -->
+  <select id="countByTypeCode" resultType="java.lang.Integer">
+    select count(0) from t_dic_type
+    where type_code = #{typeCode,jdbcType=VARCHAR}
+    <if test="excludeId != null">
+      and id != #{excludeId,jdbcType=INTEGER}
+    </if>
   </select>
 </mapper>

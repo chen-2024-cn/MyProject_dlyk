@@ -10,7 +10,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import java.util.List;
 
 public interface UserService extends UserDetailsService {
-    PageInfo<TUser> getUserByPage(Integer current);
+    /**
+     * 用户分页查询（支持账号/姓名/手机/邮箱/状态/角色筛选）。
+     * 旧版仅接收页码，前端搜索框只能过滤当前页，跨页失效。
+     */
+    PageInfo<TUser> getUserByPage(Integer current, UserQuery userQuery);
 
     TUser getUserById(Integer id);
 

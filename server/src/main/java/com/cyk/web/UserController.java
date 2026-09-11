@@ -81,14 +81,19 @@ public class UserController {
     }
 
     /**
-     * 用户分页查询
-     * @param currentPage
-     * @return
+     * 用户分页查询（支持账号/姓名/手机/邮箱/状态/角色筛选）。
+     *
+     * <p>【功能补强】旧版仅接收页码，前端搜索框只能过滤当前页 10 条、跨页失效。
+     * 现由 Spring 将 URL 查询串绑定到 UserQuery，不传任何条件时等价于原全量分页行为。</p>
+     * <p>安全说明：UserQuery 继承 BaseQuery 含 filterSQL 字段，已由 SecureBinderAdvice 全局拒收。</p>
      */
     @PreAuthorize("hasAuthority('user:list')")
     @GetMapping("/api/users")
-    public R userPage(@RequestParam(value = "current", required = false) Integer currentPage) {
-        PageInfo<TUser> pageInfo = userService.getUserByPage(currentPage);
+    public R userPage(@RequestParam(value = "current", required = false) Integer currentPage, UserQuery userQuery) {
+        if (currentPage == null) {
+            currentPage = 1;
+        }
+        PageInfo<TUser> pageInfo = userService.getUserByPage(currentPage, userQuery);
         return R.OK(pageInfo);
     }
 
@@ -96,6 +101,11 @@ public class UserController {
     @GetMapping("api/user/{id}")
     public R userDetail(@PathVariable("id") Integer id) {
         TUser t = userService.getUserById(id);
+        // 【安全修复】getUserById 同时被改密校验复用（需要密码哈希），故不能在 Service 层脱敏；
+        // 但详情接口面向前端展示，必须置空 loginPwd，避免 BCrypt 哈希随用户详情下发。
+        if (t != null) {
+            t.setLoginPwd(null);
+        }
         return R.OK(t);
     }
 
@@ -112,8 +122,22 @@ public class UserController {
 
     @PreAuthorize("hasAuthority('user:delete')")
     @DeleteMapping("/api/user/{id}")
-    public R deleteUser(@PathVariable("id") Integer id) {
+    public R deleteUser(@PathVariable("id") Integer id, Authentication authentication) {
+        // 【自我保护】禁止删除自己：删自己的 login token 会被同步清除，当前会话立即失效，
+        // 且后续操作陷入「刚删完就被踢下线」的混乱状态。引导管理员用另一账号操作或改用禁用。
+        if (isSelf(authentication, id)) {
+            return R.FAIL("不能删除当前登录的账号，请使用其他管理员账号操作");
+        }
         return userService.deleteById(id) >= 1 ? R.OK() : R.FAIL();
+    }
+
+    /** 判断目标用户是否为当前登录人本人 */
+    private boolean isSelf(Authentication authentication, Integer targetId) {
+        if (authentication == null || !(authentication.getPrincipal() instanceof TUser)) {
+            return false;
+        }
+        Integer selfId = ((TUser) authentication.getPrincipal()).getId();
+        return selfId != null && selfId.equals(targetId);
     }
 
     @PreAuthorize("hasAuthority('user:edit')")
@@ -126,8 +150,16 @@ public class UserController {
 
     @PreAuthorize("hasAuthority('user:delete')")
     @DeleteMapping("/api/user")
-    public R deleteArr(@RequestParam("ids") String ids) {
+    public R deleteArr(@RequestParam("ids") String ids, Authentication authentication) {
         List<String> idList = Arrays.asList(ids.split(","));
+        // 【自我保护】批量删除中包含自己时直接拒绝，与单删一致的边界
+        if (authentication != null && authentication.getPrincipal() instanceof TUser) {
+            Integer selfId = ((TUser) authentication.getPrincipal()).getId();
+            boolean containsSelf = idList.stream().anyMatch(s -> s != null && s.trim().equals(String.valueOf(selfId)));
+            if (containsSelf) {
+                return R.FAIL("删除名单中包含当前登录账号，请先将其移除");
+            }
+        }
         return userService.batchDelUserId(idList) >= idList.size() ? R.OK() : R.FAIL();
     }
 

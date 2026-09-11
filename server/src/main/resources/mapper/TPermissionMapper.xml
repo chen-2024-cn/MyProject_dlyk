@@ -69,6 +69,18 @@
       AND tp.type = 'button'
   </select>
 
+  <!--
+    查询系统全部按钮级权限码（供超级管理员隐式全权限授予使用）。
+    直接查 t_permission 不做任何角色联结：admin 的权限边界是“系统内定义过的所有按钮”，
+    与 t_role_permission 的配置完整性解耦。
+  -->
+  <select id="selectAllButtonCodes" resultType="java.lang.String">
+    select code
+    from t_permission
+    where `type` = 'button'
+    order by id
+  </select>
+
   <delete id="deleteByPrimaryKey" parameterType="java.lang.Integer">
     delete from t_permission
     where id = #{id,jdbcType=INTEGER}

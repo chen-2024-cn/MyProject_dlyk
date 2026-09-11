@@ -252,14 +252,30 @@
     left join t_customer tcu on tt.customer_id = tcu.id
     left join t_clue tc2 on tcu.clue_id = tc2.id
     <where>
-      <if test="customerId != null">
-        and tt.customer_id = #{customerId,jdbcType=INTEGER}
+      <if test="query != null and query.customerId != null">
+        and tt.customer_id = #{query.customerId,jdbcType=INTEGER}
       </if>
-      <if test="money != null">
-        and tt.money = #{money,jdbcType=DECIMAL}
+      <!--
+        【核心能力补齐】按交易阶段筛选：销售管道管理最核心的使用场景
+        （“我的报价阶段有几笔”“有多少笔已成交”），旧版完全缺失该条件。
+      -->
+      <if test="query != null and query.stage != null">
+        and tt.stage = #{query.stage,jdbcType=INTEGER}
+      </if>
+      <!-- 流水号模糊匹配：客户报单号即可快速定位交易 -->
+      <if test="query != null and query.tranNo != null and query.tranNo != ''">
+        and tt.tran_no like concat('%', #{query.tranNo}, '%')
+      </if>
+      <!--
+        【语义修正】旧版为 `tt.money = #{money}` 等值匹配，金额是 BigDecimal 连续值，
+        等值查询几乎不可能命中，前端那个「交易金额」搜索框实际上是废的。
+        改为「不低于」阈值语义，与本项目活动模块已有的 cost >= budget 约定保持一致。
+      -->
+      <if test="query != null and query.money != null">
+        <![CDATA[ and tt.money >= #{query.money,jdbcType=DECIMAL} ]]>
       </if>
     </where>
-    order by tt.create_time desc
+    order by tt.create_time desc, tt.id desc
   </select>
   <select id="selectMaxTranNoByDate" resultType="java.lang.String">
     select max(tran_no)

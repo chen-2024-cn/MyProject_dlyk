@@ -10,7 +10,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class JwtConfig {
 
-    @Value("${jwt.secret:dY8300olWQ3345;1d<3w48}")
+    // 不设默认兜底：缺少 JWT_SECRET 环境变量时占位符解析失败 → 启动被拒绝（fail-fast），
+    // 从根本上杜绝「已泄露的硬编码默认密钥」继续藏在源码中生效。
+    @Value("${jwt.secret}")
     public void setSecret(String secret) {
         JWTUtils.SECRET = secret;
     }

@@ -8,8 +8,17 @@ axios.defaults.baseURL = "http://localhost:8089";
 // 业务码：账号已在其他设备登录，当前设备被顶下线（与后端 CodeEnum.TOKEN_IS_ELSEWHERE 对齐）
 const KICKED_CODE = 905;
 
-// 模块级弹窗锁：同一时刻多个请求同时收到 905 时，只允许弹出一个提示框
-let kickedAlertOpen = false;
+/**
+ * 模块级认证失效弹窗锁（901-905 全通道共用）。
+ *
+ * 【修复的缺陷】旧版只有 kickedAlertOpen 且仅用于 905 分支；901-904（令牌为空/篡改/
+ * 过期/不匹配）分支无任何锁。而页面挂载时会并发发起多个请求（如权限查询 + 列表拉取
+ * + 心跳探测），令牌一旦失效它们会几乎同时收到 9xx，于是每个请求各弹一个
+ * “是否重新登录”对话框——实测确认页面上会叠出两层以上弹窗，且用户需逐个关闭。
+ * 现改为统一单飞：无论多少并发请求失败，只弹一个框；其余静默忽略，
+ * 因为第一个弹窗已经承担了全部交互职责（确认跳登录 / 取消关闭）。
+ */
+let authAlertOpen = false;
 export function doGet(url, params) {
     return axios({
         method: "get",
@@ -77,16 +86,18 @@ export function doDelete(url, params) {
 
 // 添加请求拦截器
 axios.interceptors.request.use(function (config) {
-    // 对响应数据做点什么,再请求头创建token（jwt）传给后端
+    // 取值优先级：会话级 sessionStorage → 持久化 localStorage（记住我）
     let token = window.sessionStorage.getItem(getTokenName());
-    if (!token) {
-        //如果为空,从localStorage里面取
-        token = window.localStorage.getItem(getTokenName());
-        if (token) {}
-        config.headers['rememberMe'] = true;
-    }
     if (token) {
         config.headers['Authorization'] = token;
+        return config;
+    }
+    token = window.localStorage.getItem(getTokenName());
+    if (token) {
+        config.headers['Authorization'] = token;
+        // 仅当 token 来自 localStorage（用户勾选过“记住我”）时，才告知后端续期为长会话；
+        // 旧版逻辑把 rememberMe=true 写在“sessionStorage 未命中”分支里，语义颠倒。
+        config.headers['rememberMe'] = true;
     }
     return config;
 }, function (error) {
@@ -96,17 +107,17 @@ axios.interceptors.request.use(function (config) {
 
 // 添加响应拦截器
 axios.interceptors.response.use(function (response) {
-    //TODO axios响应拦截器的控制台打印调试
-    console.log('httpRequest.js: axios的响应拦截器' , response);
+    // 【安全修复】旧版此处 console.log 打印每一个完整响应报文（含 JWT、用户资料等敏感数据），
+    // 生产环境控制台可直接拷贝登录凭证，已彻底移除；调试需要时请用 Network 面板。
 
     // 单设备登录互斥：收到 905 说明该账号已在其他设备登录，当前设备被顶下线。
     // 与 901-904 区分开，给出明确的"已有人登录"提示并强制回到登录页。
     // 踢下线瞬间往往有多个并发请求同时收到 905，用模块级锁保证弹窗只弹一个。
     if (response.data.code === KICKED_CODE) {
-        //清除token
+        //清除token（removeToken 内部会连带清除权限缓存，避免下个账号沿用旧权限）
         removeToken();
-        if (!kickedAlertOpen) {
-            kickedAlertOpen = true;
+        if (!authAlertOpen) {
+            authAlertOpen = true;
             ElMessageBox.alert(
                 response.data.msg + "，当前设备已被迫退出，请重新登录。",
                 "账号异地登录",
@@ -116,39 +127,42 @@ axios.interceptors.response.use(function (response) {
                     showClose: false
                 }
             ).finally(() => {
-                // 页面跳转会整体刷新模块状态，此处无需复位 kickedAlertOpen；
-                // 保持 true 可以确保跳转完成前，心跳等残余请求的 901/902... 错误不会叠加新弹窗
+                // 整页跳转会重置模块状态，此处无需手动复位 authAlertOpen
                 window.location.href = "/";
             });
-        } else {
-            // 其余并发请求直接静默跳转即可
-            window.location.href = "/";
         }
+        // 其余并发请求静默 reject，由首个弹窗统一处理（不再重复跳转）
         return Promise.reject(response);
     }
 
-    //拦截token验证结果，进行页面提示和跳转
+    //拦截token验证结果，进行页面提示和跳转（901 空 / 902 篡改 / 903 过期 / 904 不匹配）
     if(response.data.code > 900) {
-        // 905 异地登录弹窗尚未关闭（token 已被清除）时，心跳等残余请求返回的 901 等错误静默忽略，避免弹窗无限叠加
-        if (kickedAlertOpen) {
+        // 【单飞锁】已有认证失效弹窗在展示时，直接静默忽略：
+        // token 早已被首个弹窗分支清除，后续请求的 9xx 都是同一事实的重复反馈，
+        // 再弹只会堆叠出多层对话框，徒增用户操作成本
+        if (authAlertOpen) {
             return Promise.reject(response);
         }
+        authAlertOpen = true;
         //token未通过
-            messageFrame(response.data.msg+ "是否重新登录？")
-                .then(() => {//确认后
+        messageFrame(response.data.msg + "是否重新登录？")
+            .then(() => {//确认后
                 //清除token
                 removeToken();
                 //跳转登录页
                 window.location.href="/"
             })
-                .catch(() => {//取消后
-                    ElMessage({
-                        type: 'info',
-                        message: '已取消登录 ',
-                    })
+            .catch(() => {//取消后
+                // 用户选择留在当前页：必须复位锁，否则本会话内后续任何令牌失效
+                // 都会被静默吞掉，用户再也不会有重新登录的机会
+                authAlertOpen = false;
+                ElMessage({
+                    type: 'info',
+                    message: '已取消登录 ',
                 })
+            })
         return Promise.reject(response);
-        }
+    }
     return response;
 }, function (error) {
     // 对响应错误做点什么

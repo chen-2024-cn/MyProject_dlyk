@@ -28,6 +28,9 @@ public class CustomerController {
     @Resource
     private CustomerService customerService;
 
+    // 【安全修复】线索转客户是不可逆的核心业务动作（线索 state 置 -1），旧版无任何鉴权，
+    // 任何登录用户都能伪造转化。转化等同于对线索的高阶编辑，收敛到 clue:edit 权限。
+    @PreAuthorize("hasAuthority('clue:edit')")
     @PostMapping(value = "/api/clue/customer")
     public R convertCustomer( CustomerQuery customerQuery, @RequestHeader(value = "Authorization") String token) {
         customerQuery.setToken(token);
@@ -49,14 +52,25 @@ public class CustomerController {
         return deleted ? R.OK() : R.FAIL();
     }
 
+    /**
+     * 客户分页查询（支持多条件筛选）。
+     *
+     * <p>【功能补强】旧版仅接收页码，客户列表只能逐页浏览、无法检索。</p>
+     * <p>【命名修正】同时修正历史复制粘贴遗留的 cluePage 方法名（本类是客户控制器，
+     * 方法名误用线索语义会严重误导后续维护者）。</p>
+     *
+     * @param current      页码
+     * @param customerQuery 筛选条件（字段全部可选，不传即全量分页）
+     */
     @PreAuthorize("hasAuthority('customer:list')")
     @GetMapping(value = "/api/customers")
-    public R cluePage(@RequestParam(value = "current", required = false) Integer current) {
+    public R customerPage(@RequestParam(value = "current", required = false) Integer current,
+                          CustomerQuery customerQuery) {
         if (current == null) {
             current = 1;
         }
 
-        PageInfo<TCustomer> pageInfo = customerService.getCustomerByPage(current);
+        PageInfo<TCustomer> pageInfo = customerService.getCustomerByPage(current, customerQuery);
         return R.OK(pageInfo);
     }
 

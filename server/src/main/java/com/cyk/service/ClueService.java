@@ -12,7 +12,14 @@ import java.util.List;
 
 
 public interface ClueService {
-    PageInfo<TClue> getClueByPage(Integer current);
+
+    /**
+     * 线索分页查询。
+     *
+     * @param current 页码（从 1 开始，null 时由 Controller 兜底为 1）
+     * @param query   筛选条件（可为 null，表示不过滤）——姓名/手机/负责人/来源/意向状态/是否已转化等
+     */
+    PageInfo<TClue> getClueByPage(Integer current, ClueQuery query);
 
     void importExcel(InputStream inputStream, String token);
 

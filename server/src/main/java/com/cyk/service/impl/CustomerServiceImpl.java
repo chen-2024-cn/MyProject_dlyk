@@ -40,11 +40,11 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
-    public PageInfo<TCustomer> getCustomerByPage(Integer current) {
+    public PageInfo<TCustomer> getCustomerByPage(Integer current, CustomerQuery query) {
         //1.设置PageHelper
         PageHelper.startPage(current, Constants.PAGE_SIZE);
-        //2.查询
-        List<TCustomer> list = tCustomerMapper.selectCustomerPage();
+        //2.按条件查询（query 为 null 时等价于无筛选全量分页）
+        List<TCustomer> list = tCustomerMapper.selectCustomerPage(query);
         //3.封装分页数据到PageInfo
         PageInfo<TCustomer> info = new PageInfo<>(list);
 

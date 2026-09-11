@@ -54,6 +54,12 @@ public class DataScopeAspect {
                 BaseQuery query = (BaseQuery) params;
                 query.setFilterSQL(" and " + tableAlias + "." + tableField + "=" + tUser.getId()); //select * from t_user tu where tu.id = ... （普通用户）
             }
+        } else if (point.getArgs()[0] instanceof BaseQuery adminQuery) {
+            // 【安全修复】admin 分支必须显式清空 filterSQL（纵深防御第 2 层）。
+            // filterSQL 以 ${} 字符串拼接进 SQL，一旦外部能写入即构成注入（CWE-89）；
+            // 第 1 层是 SecureBinderAdvice 的 setDisallowedFields 全局拒收，
+            // 此处兜底保证「进入 SQL 的过滤片段只能由本切面生成」，与角色无关。
+            adminQuery.setFilterSQL(null);
         }
         Object methodArgs = point.getArgs()[0];
         log.debug("数据权限切面：目标方法执行之前，用户ID：{}，过滤条件：{}",

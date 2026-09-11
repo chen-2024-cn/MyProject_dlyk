@@ -36,6 +36,14 @@
     delete from t_product
     where id = #{id,jdbcType=INTEGER}
   </delete>
+
+  <delete id="deleteByIds" parameterType="java.util.List">
+    delete from t_product
+    where id in
+    <foreach collection="list" item="id" open="(" close=")" separator=",">
+      #{id,jdbcType=INTEGER}
+    </foreach>
+  </delete>
   <insert id="insert" keyColumn="id" keyProperty="id" parameterType="com.cyk.model.TProduct" useGeneratedKeys="true">
     insert into t_product (`name`, guide_price_s, guide_price_e, 
       quotation, `state`, create_time, 
@@ -151,7 +159,9 @@
     <if test="state != null">
       and `state` = #{state}
     </if>
-    order by create_time desc
+    <!-- 【修复】仅 create_time desc 时同秒创建的行次序不定（种子数据实测翻页可重复/遗漏），
+         补 id 作次级键保证分页稳定 -->
+    order by create_time desc, id desc
   </select>
 
   <update id="updateByPrimaryKey" parameterType="com.cyk.model.TProduct">

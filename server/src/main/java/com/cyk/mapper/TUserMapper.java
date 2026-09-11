@@ -4,6 +4,7 @@ import com.cyk.commons.DataScope;
 import com.cyk.model.TUser;
 import com.cyk.model.TUserRole;
 import com.cyk.query.BaseQuery;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -30,8 +31,23 @@ public interface TUserMapper {
      */
     int updateLastLoginTimeById(Integer id);
 
+    /**
+     * 用户分页查询（支持多条件筛选）。
+     * 签名从 BaseQuery 收紧为 UserQuery：列表接口原版完全不接收筛选字段，
+     * 前端搜索框只能过滤当前页，跨页失效。UserQuery extends BaseQuery，
+     * @DataScope 切面的 instanceof BaseQuery 判定不受影响。
+     */
     @DataScope(tableAlias = "tu", tableField = "id")
-    List<TUser> selectUserByPage(BaseQuery baseQuery);
+    List<TUser> selectUserByPage(com.cyk.query.UserQuery userQuery);
+
+    /** login_act 查重（excludeId 不为空时排除自身，供编辑场景） */
+    int countByLoginAct(@Param("loginAct") String loginAct, @Param("excludeId") Integer excludeId);
+
+    /** phone 查重（库层唯一索引） */
+    int countByPhone(@Param("phone") String phone, @Param("excludeId") Integer excludeId);
+
+    /** email 查重（库层唯一索引） */
+    int countByEmail(@Param("email") String email, @Param("excludeId") Integer excludeId);
 
     TUser selectDetailById(Integer id);
 
