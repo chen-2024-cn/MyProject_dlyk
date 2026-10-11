@@ -289,7 +289,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {doDelete, doGet, doUploadFile} from '../http/httpRequest'
+import {doDelete, doGet, doUploadFile} from '@/http/httpRequest.js'
 import { messageFrame } from "@/util/util.js";
 import {
   Search, Refresh, Plus, Upload, Delete, EditPen, View, Check,

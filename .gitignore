@@ -46,3 +46,6 @@ server/db/*_backup.sql
 Thumbs.db
 
 CLAUDE.md
+
+/bench/
+/docs/

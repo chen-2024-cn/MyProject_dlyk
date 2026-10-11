@@ -186,8 +186,8 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { doGet, doPost, doPut } from "../http/httpRequest.js";
-import { goBack, messageFrame } from "../util/util.js";
+import { doGet, doPost, doPut } from "@/http/httpRequest.js";
+import { goBack, messageFrame } from "@/util/util.js";
 
 const router = useRouter();
 const route = useRoute();

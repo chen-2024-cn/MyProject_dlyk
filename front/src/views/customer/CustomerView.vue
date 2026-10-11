@@ -239,9 +239,9 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { doGet } from "../http/httpRequest.js"
+import { doGet } from "@/http/httpRequest.js"
 import axios from "axios"
-import { getToken, messageFrame } from "../util/util.js"
+import { getToken, messageFrame } from "@/util/util.js"
 import router from "@/router/router.js";
 import { ElMessage } from 'element-plus'
 import {

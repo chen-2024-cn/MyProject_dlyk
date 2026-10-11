@@ -337,8 +337,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { doGet, doPost, doPut, doDelete } from '../http/httpRequest'
-import { messageFrame } from "../util/util.js"
+import { doGet, doPost, doPut, doDelete } from '@/http/httpRequest.js'
+import { messageFrame } from "@/util/util.js"
 import { ElMessageBox } from 'element-plus'
 import {
   User, Calendar, AlarmClock, Guide, Tickets, List, ChatLineSquare,

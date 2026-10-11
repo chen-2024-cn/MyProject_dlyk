@@ -61,7 +61,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { doGet } from "../http/httpRequest.js"
+import { doGet } from "@/http/httpRequest.js"
 import * as echarts from 'echarts'
 import { TrendCharts, PieChart, ShoppingBag, Phone, User, Money } from '@element-plus/icons-vue'
 

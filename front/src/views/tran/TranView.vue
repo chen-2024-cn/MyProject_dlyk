@@ -229,7 +229,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { doGet, doDelete } from '../http/httpRequest'
+import { doGet, doDelete } from '@/http/httpRequest.js'
 import { messageFrame } from "@/util/util.js"
 import {
   Search, Refresh, Plus, Delete, EditPen, View, Filter, DataLine,

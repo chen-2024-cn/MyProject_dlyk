@@ -347,8 +347,8 @@
 import { ref, reactive, computed, onMounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {doDelete, doGet, doPost, doPut} from "../http/httpRequest.js"
-import { goBack, messageFrame } from "../util/util.js"
+import {doDelete, doGet, doPost, doPut} from "@/http/httpRequest.js"
+import { goBack, messageFrame } from "@/util/util.js"
 import {
   User, ShoppingBag, Iphone, Check, Clock, Document, ChatLineSquare,
   ChatDotSquare, Plus, Delete, EditPen, Back, Promotion

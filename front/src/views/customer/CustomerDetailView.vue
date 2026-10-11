@@ -243,7 +243,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { doGet, doDelete } from "../http/httpRequest.js"
+import { doGet, doDelete } from "@/http/httpRequest.js"
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   User, ShoppingBag, Iphone, Money, Clock, Document, Goods,

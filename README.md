@@ -2,6 +2,8 @@
 
 一套前后端分离的销售 CRM 系统，覆盖「线索 → 客户 → 交易」的完整销售流程，并集成了一个基于 LangChain4j 的**角色感知 AI 业务智能体**。
 
+![登录页](image-1.png)
+
 ---
 
 ## 一、项目简介
@@ -16,6 +18,8 @@
             └──→ 关联 交易（Tran）
                       └──→ 阶段推进（初步接触 → 需求分析 → 报价 → 谈判 → 成交）
 ```
+
+![欢迎页](image.png)
 
 ---
 
@@ -32,19 +36,55 @@
 
 ---
 
-## 三、技术栈
+## 三、功能演示
 
-| 层 | 技术 |
-|----|------|
-| 前端 | Vue 3（Composition API）· Vue Router · Element Plus · Axios · ECharts · Vite |
-| 后端 | Spring Boot 3.5 · Spring Security · MyBatis · PageHelper |
-| AI | LangChain4j 1.1.0 · Spring AI OpenAI（DeepSeek 兼容协议）· SSE |
-| 数据 | MySQL 8 · Redis（Token / 缓存 / 原子序列）|
-| 其他 | EasyExcel（导入导出）· java-jwt · 定时任务（缓存刷新 / 对账）|
+### 数据看板
+
+首页汇总销售漏斗、线索来源分布与月度成交趋势，一屏掌握团队业绩全貌。
+
+![数据图表看板](image-2.png)
+
+### 市场活动
+
+营销活动的创建、备注与状态管理，可按时间、预算、负责人多条件筛选。
+
+![市场活动](image-4.png)
+
+### AI 列车长（管理员视图）
+
+管理员身份的 AI 助手，挂载用户管理、数据导出、批量导入、系统巡检等管理类工具；付费增值能力在工具层统一拦截。
+
+![AI 列车长](image-5.png)
+
+### 用户管理
+
+用户列表、角色分配、账号启停用与操作级权限控制，支持单设备登录互斥。
+
+![用户管理界面](image-6.png)
+
+### 个人中心
+
+个人信息维护、密码修改与当前账号权限查看。
+
+![个人中心](image-3.png)
 
 ---
 
-## 四、技术亮点
+## 四、技术栈
+
+| 层 | 技术 |
+|----|------|
+| 前端 | Vue 3.5（Composition API）· Vue Router 5 · Element Plus 2 · Axios · ECharts 6 · Vite 7 |
+| 后端 | Spring Boot 3.5 · Spring Security · MyBatis · PageHelper |
+| AI | LangChain4j 1.1.0（OpenAI 兼容协议）· Reactor `Flux` SSE 流式输出 |
+| 数据 | MySQL 8 · Redis（Token / 缓存 / 原子序列） |
+| 其他 | EasyExcel（导入导出）· java-jwt · 定时任务（缓存刷新 / 对账） |
+
+> 说明：`server/pom.xml` 中仍保留 `spring-ai-openai-spring-boot-starter` 与 DashScope 两个依赖，但当前业务代码**未使用**它们，AI 链路完全基于 LangChain4j 实现。
+
+---
+
+## 五、技术亮点
 
 ### 1. AI 智能体 · 角色感知与工具隔离
 
@@ -73,7 +113,7 @@
 
 ---
 
-## 五、系统架构
+## 六、系统架构
 
 ```
 Vue 3 SPA
@@ -90,11 +130,11 @@ Mapper（MyBatis · XML 动态 SQL）
 MySQL（持久化）  +  Redis（Token / 缓存 / 原子序列）
 ```
 
-AI 链路：`AiAgentController(SSE)` → `AiAssistantServiceImpl`（角色编排）→ LangChain4j Agent（按角色挂载工具包）→ DeepSeek 大模型。
+AI 链路：`AiAgentController(SSE)` → `AiAssistantServiceImpl`（角色编排）→ LangChain4j Agent（按角色挂载工具包）→ 大模型。
 
 ---
 
-## 六、项目结构
+## 七、项目结构
 
 ```
 dlyk/
@@ -103,7 +143,9 @@ dlyk/
 │       ├── http/                   # Axios 封装 + JWT 拦截器 + SSE 客户端
 │       ├── router/                 # 路由配置（含登录守卫）
 │       ├── util/                   # 工具函数（Token 管理、权限缓存）
-│       └── view/                   # 页面组件（20 个视图）
+│       └── views/                  # 页面组件
+│           ├── activity/  ai/  auth/  clue/  customer/
+│           ├── dashboard/ dict/ product/ system/ tran/  user/
 ├── server/                         # Spring Boot 后端
 │   ├── db/                         # 数据库脚本（结构 / 数据分离）
 │   └── src/main/java/com/cyk/
@@ -111,16 +153,19 @@ dlyk/
 │       ├── manager/                # 业务编排层
 │       ├── service/                # 业务逻辑层（含 ai/ 智能体模块）
 │       ├── mapper/                 # MyBatis 数据访问层
+│       ├── model/  query/  result/ # 实体 / 查询参数 / 返回对象
 │       ├── config/                 # 安全配置 / JWT 过滤器 / AI 配置
 │       ├── aspect/                 # 数据权限切面
 │       ├── task/                   # 定时任务（缓存刷新 / 对账）
-│       └── constants/              # 常量与配置项
-└── docs/                           # 设计文档
+│       ├── commons/  exception/  util/  constants/
+│       └── ServerApplication.java
+├── bench/                          # 高并发性能压测工具集（Python）
+└── docs/                           # 设计与学习文档
 ```
 
 ---
 
-## 七、快速启动
+## 八、快速启动
 
 ### 环境要求
 
@@ -158,10 +203,3 @@ npm run dev                # 默认端口 5173
 ```
 
 ---
-
-## 八、文档
-
-- `docs/项目介绍.md` —— 项目全貌与功能清单
-- `docs/AI智能体功能设计与实现详解.md` —— AI 智能体与付费体系设计推导
-- `docs/改动与修补说明.md` —— 安全审计与模块优化的详细记录
-- `登录流程.png` / `免登录流程.png` / `JWT登录流程与Redis认证.png` —— 认证时序图

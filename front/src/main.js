@@ -1,7 +1,6 @@
 // import './assets/main.css'
 
 import { createApp } from 'vue'
-import loginForm from './view/LoginForm.vue'
 import App from "./App.vue";//根组件
 
 //导入router组件

@@ -8,13 +8,13 @@ const router = createRouter({
             //路由路径
             path:'/',
             //路由路径所对应的页面
-            component : () => import('../view/LoginForm.vue')
+            component : () => import('@/views/auth/LoginForm.vue')
         },
         {
             //路由路径
                 path:'/dashboard',
             //路由路径所对应的页面
-            component : () => import('../view/DashboardView.vue'),
+            component : () => import('@/views/dashboard/DashboardView.vue'),
             // 需要登录才能访问（全局守卫据此拦截）
             meta: { requiresAuth: true },
             //子路由
@@ -22,87 +22,87 @@ const router = createRouter({
                 {
                     //子路由不能以斜杠开头
                     path:'',
-                    component: () => import('../view/StatisticView.vue'),
+                    component: () => import('@/views/dashboard/StatisticView.vue'),
                 },
                 {
                     //子路由不能以斜杠开头
                     path:'user',
-                    component: () => import('../view/UserView.vue'),
+                    component: () => import('@/views/user/UserView.vue'),
                 },
                 {
                     //id是动态变量用 :id
                     path:'user/:id',
-                    component:() => import('../view/UserDetailView.vue'),
+                    component:() => import('@/views/user/UserDetailView.vue'),
                 },
                 {
                     path:'activity',
-                    component:() => import('../view/Activity.vue'),
+                    component:() => import('@/views/activity/Activity.vue'),
                 },
                 {
                     path:'clue',
-                    component:() => import('../view/ClueView.vue'),
+                    component:() => import('@/views/clue/ClueView.vue'),
                 },
                 {
                     path:'clue/add',
-                    component:() => import('../view/ClueRecordView.vue'),
+                    component:() => import('@/views/clue/ClueRecordView.vue'),
                 },
                 {
                     path:'clue/edit/:id',
-                    component:() => import('../view/ClueRecordView.vue'),
+                    component:() => import('@/views/clue/ClueRecordView.vue'),
                 },
                 {
                     path:'clue/:id',
-                    component:() => import('../view/ClueDetailView.vue'),
+                    component:() => import('@/views/clue/ClueDetailView.vue'),
                 },
                 {
                     path:'customer',
-                    component:() => import('../view/CustomerView.vue'),
+                    component:() => import('@/views/customer/CustomerView.vue'),
                 },
                 {
                     path:'customer/:id',
-                    component:() => import('../view/CustomerDetailView.vue'),
+                    component:() => import('@/views/customer/CustomerDetailView.vue'),
                 },
                 {
                     path:'tran',
-                    component:() => import('../view/TranView.vue'),
+                    component:() => import('@/views/tran/TranView.vue'),
                 },
                 {
                     path:'tran/add',
-                    component:() => import('../view/TranRecordView.vue'),
+                    component:() => import('@/views/tran/TranRecordView.vue'),
                 },
                 {
                     path:'tran/edit/:id',
-                    component:() => import('../view/TranRecordView.vue'),
+                    component:() => import('@/views/tran/TranRecordView.vue'),
                 },
                 {
                     path:'tran/:id',
-                    component:() => import('../view/TranDetailView.vue'),
+                    component:() => import('@/views/tran/TranDetailView.vue'),
                 },
                 {
                     path:'product',
-                    component:() => import('../view/ProductView.vue'),
+                    component:() => import('@/views/product/ProductView.vue'),
                 },
                 {
                     // 字典类型：目录总览页（卡片网格 + 数据质量巡检 + 跳转维护）
                     path:'dictype',
-                    component:() => import('../view/DicTypeView.vue'),
+                    component:() => import('@/views/dict/DicTypeView.vue'),
                 },
                 {
                     // 字典数据：值维护工作台（类型选择器 + 深链 ?typeCode= + 排序号智能提示）
                     path:'dicvalue',
-                    component:() => import('../view/DicValueView.vue'),
+                    component:() => import('@/views/dict/DicValueView.vue'),
                 },
                 {
                     path:'system',
-                    component:() => import('../view/SystemView.vue'),
+                    component:() => import('@/views/system/SystemView.vue'),
                 },
                 {
                     path:'profile',
-                    component:() => import('../view/UserProfileView.vue'),
+                    component:() => import('@/views/user/UserProfileView.vue'),
                 },
                 {
                     path:'ai',
-                    component:() => import('../view/AiAssistantView.vue'),
+                    component:() => import('@/views/ai/AiAssistantView.vue'),
                 }
             ]
         }
