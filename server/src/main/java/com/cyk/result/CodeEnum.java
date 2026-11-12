@@ -23,6 +23,10 @@ public enum CodeEnum {
     // 单设备登录互斥：同一账号在另一台设备重新登录，当前设备被顶下线
     TOKEN_IS_ELSEWHERE(905, "您的账号已在其他设备登录"),
 
+    // 双 Token：Access Token 的 JWT 本身已过期，但登录会话可能仍然有效，前端应静默调用刷新接口。
+    // 与 903（Redis 会话已不存在，刷新也没用）严格区分。
+    ACCESS_TOKEN_EXPIRED(906, "Access Token 已过期，需要刷新"),
+
     USER_LOGOUT(200, "退出成功"),
 
     DATA_ACCESS_EXCEPTION(500,"数据库操作失败"),

@@ -67,6 +67,8 @@ public class SecurityConfig {
                             .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC,
                                     jakarta.servlet.DispatcherType.ERROR).permitAll()
                             .requestMatchers("/api/login",
+                                    Constants.REFRESH_URI,
+                                    Constants.LOGOUT_BY_COOKIE_URI,
                                     "/api/register",
                                     "/api/password/reset/code",
                                     "/api/password/reset",

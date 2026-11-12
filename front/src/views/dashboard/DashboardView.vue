@@ -122,8 +122,8 @@ import {
   Setting,
   ArrowDown, ShoppingBag, User, OfficeBuilding, Compass, Management, Money, Cpu
 } from '@element-plus/icons-vue'
-import {doGet} from "@/http/httpRequest.js";
-import {getTokenName, messageFrame, removeToken} from "@/util/util.js";
+import {doGet, logoutByCookie} from "@/http/httpRequest.js";
+import {getAccessToken, messageFrame, removeToken} from "@/util/util.js";
 import {ElMessage} from "element-plus";
 
 /*------------单设备登录互斥：心跳轮询----------*/
@@ -138,9 +138,7 @@ const startLoginHeartbeat = () => {
     // 收到 905 后拦截器会立刻清除 token，若此时定时器仍在运行，
     // 就会每 5 秒发出一次无 token 的请求，被后端返回 901「Token参数为空」并叠加弹框。
     // 因此一旦 token 已不存在，直接停掉心跳，静默等待拦截器完成跳转。
-    const token = window.sessionStorage.getItem(getTokenName())
-        || window.localStorage.getItem(getTokenName());
-    if (!token) {
+    if (!getAccessToken()) {
       stopLoginHeartbeat();
       return;
     }
@@ -273,34 +271,38 @@ const loadLoginUser = async () => {
   userInfo.value = request.data.data;
 }
 
+// 收尾：清内存令牌、清设备级主题偏好（重新登入时强制优先读取数据库里管理员设定的默认主题色）、整页回登录页
+const finishLogout = () => {
+  removeToken();
+  localStorage.removeItem('app-theme');
+  window.location.href = "/"
+}
+
 //退出登录
-const logout =async () => {
+const logout = async () => {
   stopLoginHeartbeat() // 主动退出时先停掉心跳轮询
-  const res = await doGet("api/logout", {});
-  if (res.data.code === 200) {
-    ElMessage.success("退出成功！");
-    //清除token
-    removeToken();
-    // 清空用户临时的设备级主题偏好，重新登入时强制优先读取数据库管理员修改的默认权威主题色
-    localStorage.removeItem('app-theme');
-    //跳转登录页
-    window.location.href="/"
-  }else {
-    messageFrame("退出异常，是否强制退出？")
-        .then(() => {//确认后
-      //清除token
-      removeToken();
-      localStorage.removeItem('app-theme');
-      //跳转登录页
-      window.location.href="/"
-    })
-        .catch(() => {//取消后
-          ElMessage({
-            type: 'info',
-            message: '已取消退出 ',
-          })
-        })
+  try {
+    const res = await doGet("/api/logout", {});
+    if (res.data.code === 200) {
+      ElMessage.success("退出成功！");
+      finishLogout();
+      return;
+    }
+  } catch (e) {
+    // 9xx 被拦截器 reject 的是响应对象（不是 Error），弹窗已由拦截器负责，这里不再叠加提示；
+    // 真正的 Error（网络中断等）落到下面的"强制退出"确认
+    if (!(e instanceof Error)) return;
   }
+  try {
+    await messageFrame("退出异常，是否强制退出？");
+  } catch (e) {
+    startLoginHeartbeat(); // 用户选择留下：恢复刚才停掉的心跳
+    ElMessage({type: 'info', message: '已取消退出 '});
+    return;
+  }
+  // 让服务端清掉 HttpOnly 的 Refresh Cookie 和会话；否则回到登录页会被残留 Cookie 自动登录回来
+  await logoutByCookie();
+  finishLogout();
 }
 
 // 当前时间显示

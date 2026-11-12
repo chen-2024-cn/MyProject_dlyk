@@ -3,14 +3,22 @@ package com.cyk.service.impl;
 import com.cyk.service.RedisService;
 import jakarta.annotation.Resource;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class RedisServiceImpl implements RedisService {
     @Resource
     private RedisTemplate<String, Object> redisTemplate;
+
+    private static final DefaultRedisScript<Long> CAS_SCRIPT = new DefaultRedisScript<>(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then " +
+                    "  redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) return 1 " +
+                    "else return 0 end", Long.class);
+
 
     @Override
     public void setValue(String key, String value) {
@@ -65,6 +73,12 @@ public class RedisServiceImpl implements RedisService {
     public Long getExpireSeconds(String key) {
         // -2：key 不存在；-1：存在但未设置过期（对账任务据此识别异常 key 并重新对齐 TTL）
         return redisTemplate.getExpire(key, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public boolean compareAndSet(String key, String expected, String newValue, long ttlSeconds) {
+        Long result = redisTemplate.execute(CAS_SCRIPT, List.of(key), expected, newValue, String.valueOf(ttlSeconds));
+        return Long.valueOf(1L).equals(result);
     }
 
 }

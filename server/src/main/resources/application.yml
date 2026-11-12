@@ -71,3 +71,7 @@ project:
     # 周期性将 Redis 开通标记与数据库真相比对收敛，覆盖"绕过应用直改数据库"场景
     ai-reconcile-delay: 300000
 
+# 双 Token：Refresh Cookie 是否仅限 HTTPS 传输。
+# 本地 http://localhost 开发保持 false；部署到 HTTPS 域名后必须设为 true（环境变量 COOKIE_SECURE=true）。
+auth:
+  cookie-secure: ${COOKIE_SECURE:false}

@@ -32,4 +32,6 @@ public interface RedisService {
      * 用于缓存对账时校验 Redis TTL 与数据库有效期是否漂移。
      */
     Long getExpireSeconds(String key);
+    /** 仅当 key 当前值等于 expected 时才写入 newValue（并设置过期），返回是否写入成功 */
+    boolean compareAndSet(String key, String expected, String newValue, long ttlSeconds);
 }

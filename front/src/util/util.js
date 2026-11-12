@@ -1,22 +1,27 @@
 import {ElMessage, ElMessageBox} from "element-plus";
 
-/**
- * 获取存储再sessionStorage或者localStorage里面的token（jwt）的名字
- * @returns {string}
- */
-export function getTokenName() {
-    return "dlyk_token";
+// ============================================================================
+// Access Token：只放在这个模块变量里（内存），不写 localStorage / sessionStorage。
+// 不直接 export 变量本身，而是提供读写函数：import 进来的绑定是只读的，
+// 外部想改只能走 setAccessToken，赋值入口唯一，出问题好排查。
+// ============================================================================
+let accessToken = null;
+
+export function getAccessToken() {
+    return accessToken;
+}
+
+export function setAccessToken(token) {
+    accessToken = token || null;
 }
 
 
 export function removeToken() {
-    window.localStorage.removeItem(getTokenName());
-    window.sessionStorage.removeItem(getTokenName());
+    accessToken = null;
     // 令牌清除的同时清除权限缓存：登出、异地踢下线、令牌失效都走此函数，
     // 单点收口确保不残留上一个账号的权限码（防串号）。函数声明有提升，后置定义可安全调用。
     clearPermissionCache();
 }
-
 // ============================================================================
 // 权限缓存（解决 v-hasPermission 指令 N+1 请求风暴）
 // ----------------------------------------------------------------------------
@@ -26,7 +31,7 @@ export function removeToken() {
 // 退出登录 / 切换账号时 clearPermissionCache() 清除，防串号。
 // 用 sessionStorage 而非 localStorage：会话级隔离，关标签页自动失效，天然防跨账号污染。
 // ============================================================================
-const PERMISSION_CACHE_KEY = "dlyk_permission_cache";
+const PERMISSION_CACHE_KEY = "apex_sales_permission_cache";
 
 /**
  * 写入权限缓存（含按钮权限码与角色），由登录后首次拉取 /api/login/info 时调用。
@@ -86,26 +91,3 @@ export function goBack() {
     window.history.back()
 }
 
-/**
- * 获取token
- *
- * @returns {string}
- */
-export function getToken() {
-    let token = window.sessionStorage.getItem(getTokenName());
-    if (!token) { //前面加了一个！，表示token不存在，token是空的，token没有值，这个意思
-        token = window.localStorage.getItem(getTokenName());
-    }
-    if (token) { //表示token存在，token不是空的，token有值，这个意思
-        return token;
-    } else {
-        messageConfirm("请求token为空，是否重新去登录？").then(() => { //用户点击“确定”按钮就会触发then函数
-            //既然后端验证token未通过，那么前端的token肯定是有问题的，那没必要存储在浏览器中，直接删除一下
-            removeToken();
-            //跳到登录页
-            window.location.href = "/";
-        }).catch(() => { //用户点击“取消”按钮就会触发catch函数
-            messageTip("取消去登录", "warning");
-        })
-    }
-}

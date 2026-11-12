@@ -1,20 +1,25 @@
 package com.cyk.config.filter;
 
 
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.exceptions.TokenExpiredException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.cyk.constants.Constants;
+import com.cyk.manager.AuthorityManager;
 import com.cyk.model.TUser;
 import com.cyk.result.CodeEnum;
 import com.cyk.result.R;
 import com.cyk.service.RedisService;
 import com.cyk.util.JSONUtils;
 import com.cyk.util.JWTUtils;
+import com.cyk.util.LoginSession;
 import com.cyk.util.ResponseUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -22,25 +27,27 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
-
+@Slf4j
 @Component
 public class TokenVerifyFilter extends OncePerRequestFilter {
 
     @Resource
     private RedisService redisService;
 
-    //spring boot框架的ioc容器中已经创建好了该线程池，可以注入直接使用
     @Resource
-    private ThreadPoolTaskExecutor threadPoolTaskExecutor;
+    private AuthorityManager authorityManager;
+
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String requestURI = request.getRequestURI();
         
         // 核心修复：放行公开的匿名请求（登录、注册、找回密码邮件验证码、修改密码提交）
-        if (requestURI.equals(Constants.LOGIN_URI) 
+        // 刷新接口靠 HttpOnly Cookie 里的 Refresh Token 认证，请求里没有 Access Token，必须放行
+        if (requestURI.equals(Constants.LOGIN_URI)
+                || requestURI.equals(Constants.REFRESH_URI)
+                || requestURI.equals(Constants.LOGOUT_BY_COOKIE_URI)
                 || requestURI.equals("/api/register")
                 || requestURI.equals("/api/password/reset/code")
                 || requestURI.equals("/api/password/reset")
@@ -49,100 +56,67 @@ public class TokenVerifyFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
 
         } else {
-            String token = null;
-            if (request.getRequestURI().equals(Constants.EXPORT_EXCEL_URI)
-                    || request.getRequestURI().equals("/api/ai/stream-chat")
-                    || request.getRequestURI().equals("/api/ai/file/download")) {
-                // 文件下载场景（浏览器直接访问链接）无法自定义请求头，token 经 URL 参数传递
-                //（与 exportExcel 同一约定，接口本身仍受角色鉴权约束）
-                token = request.getParameter("Authorization");
-            } else {
-                //其他请求都是从请求头中获取token
-                token = request.getHeader("Authorization");
-            }
+            String token = request.getHeader(Constants.TOKEN_NAME);
 
+            //901 没带令牌
             if (!StringUtils.hasText(token)) {
                 //token验证未通过的统一结果
-                R result = R.FAIL(CodeEnum.TOKEN_IS_EMPTY);
-                //把R对象转成json
-                String resultJSON = JSONUtils.toJSON(result);
-                //把R以json返回给前端
-                ResponseUtils.write(response, resultJSON);
+                reject(response, CodeEnum.TOKEN_IS_EMPTY);
                 return;
             }
 
-            //验证token有没有被篡改过
-            if (!JWTUtils.verifyJWT(token)) {
-                //token验证未通过统一结果
-                R result = R.FAIL(CodeEnum.TOKEN_IS_ERROR);
-
-                //把R对象转成json
-                String resultJSON = JSONUtils.toJSON(result);
-
-                //把R以json返回给前端
-                ResponseUtils.write(response, resultJSON);
-
+            // 校验签名、过期时间、令牌用途（必须是 access）
+            DecodedJWT decoded;
+            try {
+                decoded = JWTUtils.verifyAccessToken(token);
+            } catch (TokenExpiredException e) {
+                //906 签名正确，但过期了
+                reject(response, CodeEnum.ACCESS_TOKEN_EXPIRED);
+                return;
+            } catch (JWTVerificationException e) {
+                // 902：被篡改、格式损坏、拿 Refresh 冒充 Access 等。刷新也救不了，只能重新登录
+                // 只记录异常描述，绝不把令牌原文写进日志
+                log.warn("Access Token 校验未通过: {}", e.getMessage());
+                reject(response, CodeEnum.TOKEN_IS_ERROR);
                 return;
             }
 
-            TUser tUser = JWTUtils.parseUserFromJWT(token);
-            String redisToken = (String) redisService.getValue(Constants.REDIS_JWT_KEY + tUser.getId());
 
-            if (!StringUtils.hasText(redisToken)) {
-                //token验证未通过统一结果
-                R result = R.FAIL(CodeEnum.TOKEN_IS_EXPIRED);
+            // 直接复用上面验过的 decoded，不再调用 parseUserFromJWT（那会把 HMAC 验签重复算一遍）
+            TUser tUser = JSONUtils.toBean(decoded.getClaim("user").asString(), TUser.class);
 
-                //把R对象转成json
-                String resultJSON = JSONUtils.toJSON(result);
+            LoginSession session = LoginSession.parse((String)redisService.getValue(Constants.REDIS_JWT_KEY + tUser.getId()));
 
-                //把R以json返回给前端
-                ResponseUtils.write(response, resultJSON);
-
+            // 903：Redis 里没有会话（已退出、已过期、被管理员踢下线，或是升级前的旧格式数据）
+            if (session == null) {
+                reject(response, CodeEnum.TOKEN_IS_EXPIRED);
                 return;
             }
 
-            if (!token.equals(redisToken)) {
-                // 单设备登录互斥：JWT 签名合法，但已不是 Redis 中的最新 token，
-                // 说明该账号在其他设备重新登录过，当前设备被顶下线
-                R result = R.FAIL(CodeEnum.TOKEN_IS_ELSEWHERE);
-
-                //把R对象转成json
-                String resultJSON = JSONUtils.toJSON(result);
-
-                //把R以json返回给前端
-                ResponseUtils.write(response, resultJSON);
+            // 905：单设备登录互斥。令牌本身合法，但会话已被别处的新登录替换（sid 对不上）
+            if (!session.sid().equals(decoded.getClaim("sid").asString())) {
+                reject(response, CodeEnum.TOKEN_IS_ELSEWHERE);
                 return;
             }
+
+            // 令牌只证明"你是谁"。角色与权限每次请求按用户 ID 向服务端取，不信任令牌里的任何权限信息。
+            // 放在所有廉价校验（901/902/906/903/905）之后：被拒绝的请求不会白白查库
+            authorityManager.fill(tUser);
 
             //jwt验证通过了，那么在spring security的上下文环境中要设置一下，设置当前这个人是登录过的，你后续不要再拦截他了
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(tUser, tUser.getLoginPwd(), tUser.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authenticationToken);
 
-            //刷新一下token（异步处理，new一个线程去执行）
-            /*new Thread(() -> {
-                //刷新token
-                String rememberMe = request.getHeader("rememberMe");
-                if (Boolean.parseBoolean(rememberMe)) {
-                    redisService.expire(Constants.REDIS_JWT_KEY + tUser.getId(), Constants.EXPIRE_TIME, TimeUnit.SECONDS);
-                } else {
-                    redisService.expire(Constants.REDIS_JWT_KEY + tUser.getId(), Constants.DEFAULT_EXPIRE_TIME, TimeUnit.SECONDS);
-                }
-            }).start();*/
-
-            String rememberMe = request.getHeader("rememberMe");
-            //异步处理（更好的方式，使用线程池去执行）
-            threadPoolTaskExecutor.execute(() -> {
-                //刷新token
-
-                if (Boolean.parseBoolean(rememberMe)) {
-                    redisService.expire(Constants.REDIS_JWT_KEY + tUser.getId(), Constants.EXPIRE_TIME, TimeUnit.SECONDS);
-                } else {
-                    redisService.expire(Constants.REDIS_JWT_KEY + tUser.getId(), Constants.DEFAULT_EXPIRE_TIME, TimeUnit.SECONDS);
-                }
-            });
 
             //验证jwt通过了 ，让Filter链继续执行，也就是继续执行下一个Filter
             filterChain.doFilter(request, response);
         }
+    }
+
+    //认证失败统一接口
+    private void reject(HttpServletResponse response, CodeEnum codeEnum) throws IOException {
+        R result = R.FAIL(codeEnum);
+        String resultJSON = JSONUtils.toJSON(result);
+        ResponseUtils.write(response, resultJSON);
     }
 }

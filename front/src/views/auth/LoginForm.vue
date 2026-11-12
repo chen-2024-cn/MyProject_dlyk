@@ -198,8 +198,14 @@
 import {ref, reactive, onMounted, computed} from 'vue'
 import {ElMessage} from 'element-plus'
 import {User, Lock, UserFilled, Message, Iphone, DataAnalysis, TrendCharts, Promotion, ArrowDown} from '@element-plus/icons-vue'
-import {doGet, doPost, doPut, doPostJson} from "@/http/httpRequest.js";
-import {getTokenName, removeToken} from "@/util/util.js";
+import {doGet, doPost, doPut, doPostJson, restoreSession} from "@/http/httpRequest.js";
+import {removeToken, setAccessToken} from "@/util/util.js";
+import {useRouter} from "vue-router";
+
+// 路由实例必须在 setup 顶层同步获取：useRouter() 内部依赖 inject，只在组件 setup
+// 执行期间才能拿到实例。写进 async 事件处理器里会返回 undefined 且不报错（静默失效，
+// 比抛异常更难排查），因此这里取一次，后续所有处理器复用同一个实例。
+const router = useRouter()
 
 // 全局公共系统配置
 const systemConfig = ref({
@@ -472,50 +478,73 @@ onMounted(() => {
   }
 })
 
-const freeLogin = async () => {
-  const token = window.localStorage.getItem(getTokenName());
-  if (token) {
-    const response = await doGet("/api/login/free", {});
+// 登录后的去向：路由守卫会把用户原本想去的页面放在 ?redirect= 里，没有就去工作台。
+// 只接受站内路径：必须以 "/" 开头，且不能是 "//xxx"（协议相对地址，会跳去别的站点）
+// 或 "/\xxx"（部分浏览器把反斜杠当斜杠）。不校验就是"开放重定向"：
+// 攻击者发一条 ?redirect=//evil.com 的链接，用户登录成功后就被带去钓鱼站。
+const resolveRedirect = () => {
+  const target = router.currentRoute.value.query.redirect
+  if (typeof target !== 'string' || !target.startsWith('/') || target.startsWith('//') || target.startsWith('/\\')) {
+    return '/dashboard'
+  }
+  // 目标是登录页自己（路径部分是 "/"）会原地打转，也回工作台
+  return target.split(/[?#]/)[0] === '/' ? '/dashboard' : target
+}
 
-    if (response.data.code === 200 ) {
-      window.location.href = "/dashboard";
-    }
+const freeLogin = async () => {
+  // 页面一加载就试探一次：浏览器里有效的 Refresh Cookie（比如上次勾选了“记住我”，
+  // 或同一浏览器会话内刷新了页面）就能换到 Access Token，直接进工作台。
+  // 没有 Cookie 时后端返回 901，restoreSession 返回 false，静默留在登录页，不弹任何提示
+  if (await restoreSession()) {
+    window.location.href = resolveRedirect();
   }
 }
 
 const handleLogin = async () => {
   if (!loginFormRef.value) return
 
-  await loginFormRef.value.validate()
+  // validate() 校验不通过时会 reject，此处捕获后静默返回（表单项已自行标红，无需再打扰用户）
+  try {
+    await loginFormRef.value.validate()
+  } catch (e) {
+    return
+  }
+
   loading.value = true
-
-  const requestData = {
-    loginAct: loginForm.loginAct,
-    loginPwd: loginForm.loginPwd,
-    rememberMe: rememberMe.value
-  }
-  // 【安全修复】旧版此处 console.log 直接打印明文密码与登录响应（含 JWT），
-  // 任何能看到控制台的人（共享机器/截图/浏览器插件）都能获取凭证，已彻底移除。
-
-  const response = await doPost('/api/login', requestData)
-
-  if (response.data.code === 200) {
-    // 【修复】后端登录成功时 R.OK(jwt) 的 data 是 JWT 字符串本身，并非用户对象；
-    // 旧版读取 response.data.data.loginAct 恒为 undefined，界面弹"你好 undefined"。
-    // 此处不再依赖登录响应里的用户名（它本就不在响应中），改为友好欢迎语；
-    // 真实用户名在跳转后由 DashboardView 调 /api/login/info 获取并展示。
-    ElMessage.success('登录成功，欢迎回来！')
-    removeToken(); // 内部已连带清除上一个账号的权限缓存，防串号
-    if (rememberMe.value === true) {
-      window.localStorage.setItem(getTokenName(), response.data.data);
-    } else {
-      window.sessionStorage.setItem(getTokenName(), response.data.data);
+  // try/catch/finally 兜住 loading：任何一步抛错（网络异常、后端非预期响应、路由跳转失败）
+  // 都必须复位按钮，否则登录按钮永久停留在转圈状态，用户除了刷新页面别无他法。
+  try {
+    const requestData = {
+      loginAct: loginForm.loginAct,
+      loginPwd: loginForm.loginPwd,
+      rememberMe: rememberMe.value
     }
-    window.location.href = "/dashboard";
-  } else {
-    ElMessage.error(response.data.msg || '登录失败')
+
+    const response = await doPost('/api/login', requestData)
+
+    if (response.data.code === 200) {
+      // 【修复】后端登录成功时 R.OK(jwt) 的 data 是 JWT 字符串本身，并非用户对象；
+      // 旧版读取 response.data.data.loginAct 恒为 undefined，界面弹"你好 undefined"。
+      // 此处不再依赖登录响应里的用户名（它本就不在响应中），改为友好欢迎语；
+      // 真实用户名在跳转后由 DashboardView 调 /api/login/info 获取并展示。
+      ElMessage.success('登录成功，欢迎回来！')
+      removeToken(); // 内部已连带清除上一个账号的权限缓存，防串号
+      setAccessToken(response.data.data); // 令牌只放内存；Refresh Token 已由后端写进 HttpOnly Cookie，前端碰不到
+      // 顺序不可颠倒：必须先写入内存令牌，路由守卫的 restoreSession() 才会直接放行，
+      // 否则会拿 HttpOnly Cookie 多跑一次刷新接口
+      await router.push(resolveRedirect()) // 回到登录前想去的页面，没有就去工作台
+    } else {
+      // 后端登录失败返回 code=500（CodeEnum.FAIL），不会被响应拦截器的 9xx 分支拦下，在此正常提示
+      ElMessage.error(response.data.msg || '登录失败')
+    }
+  } catch (error) {
+    // 只输出 message：完整 error 对象的请求体含明文密码、响应体含 JWT，
+    // 与本文件既有的「控制台不留存凭证」安全约定保持一致
+    console.error('登录失败:', error?.message || '未知错误')
+    ElMessage.error('登录失败，请稍后重试')
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 </script>

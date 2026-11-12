@@ -1,21 +1,16 @@
 package com.cyk.aspect;
 
 import com.cyk.commons.DataScope;
-import com.cyk.constants.Constants;
 import com.cyk.model.TUser;
 import com.cyk.query.BaseQuery;
-import com.cyk.util.JWTUtils;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-
 import org.aspectj.lang.reflect.MethodSignature;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.List;
 
@@ -39,13 +34,9 @@ public class DataScopeAspect {
         String tableAlias = annotation.tableAlias();
         String tableField = annotation.tableField();
 
-        //在spring web中获取当前请求的request对象
-        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
-
-        String token = request.getHeader(Constants.TOKEN_NAME);
-        //从token中解析出当前用户的身份
-        TUser tUser = JWTUtils.parseUserFromJWT(token);
-            List<String> roleList = tUser.getRoleList();
+        // 当前登录人由 TokenVerifyFilter 放进 SecurityContext：身份来自令牌，角色来自服务端
+        TUser tUser = (TUser) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        List<String> roleList = tUser.getRoleList();
 
         if (!roleList.contains("admin")) {
             //只查询用户自己的数据（普通用户）

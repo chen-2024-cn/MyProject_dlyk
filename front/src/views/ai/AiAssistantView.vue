@@ -215,10 +215,8 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Cpu, Compass, Refresh, Upload, Tools, User } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import axios from 'axios'
-import { doGet, doPostJson, doUploadFile } from "@/http/httpRequest.js"
+import { doGet, doPostJson, doUploadFile, doDownload } from "@/http/httpRequest.js"
 import { createSseConnection, AI_STREAM_CHAT } from "@/http/sseClient.js"
-import { getToken } from "@/util/util.js"
 
 const userInput = ref('')
 const loading = ref(false)
@@ -412,11 +410,14 @@ const cancelOrderRow = async (row) => {
 watch(showOrders, (v) => { if (v) loadOrders() })
 
 // ------------------------- 文件下载（管理员） -------------------------
-const downloadFile = (fileName) => {
-  const token = getToken()
-  const url = axios.defaults.baseURL + '/api/ai/file/download?fileName='
-      + encodeURIComponent(fileName) + '&Authorization=' + encodeURIComponent(token)
-  window.open(url, '_blank')
+const downloadFile = async (fileName) => {
+  try {
+    await doDownload('/api/ai/file/download', { fileName }, fileName)
+  } catch (e) {
+    if (e instanceof Error) {
+      ElMessage.error(e.message)
+    }
+  }
 }
 
 // ------------------------- 对话核心 -------------------------

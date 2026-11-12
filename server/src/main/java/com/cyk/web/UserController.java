@@ -47,8 +47,6 @@ public class UserController {
     @GetMapping("/api/login/info")
     public R LoginInfo(Authentication authentication) {
         TUser jwtUser = ((TUser) authentication.getPrincipal());
-        // 仅更新最近登录时间（单列更新，避免整表覆盖）
-        userService.updateLastLoginTime(jwtUser);
         // 实时查库返回最新的完整用户信息（含密码脱敏）
         TUser latest = userService.getUserInfo(jwtUser.getId());
         return R.OK(latest);

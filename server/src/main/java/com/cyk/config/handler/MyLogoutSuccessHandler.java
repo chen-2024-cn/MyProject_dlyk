@@ -16,7 +16,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import com.cyk.util.JWTUtils;
+import com.cyk.util.LoginSession;
+import com.cyk.util.RefreshCookieHelper;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.IOException;
 
@@ -31,6 +34,9 @@ public class MyLogoutSuccessHandler implements LogoutSuccessHandler {
     @Resource
     private RedisService redisService;
 
+    @Value("${auth.cookie-secure:false}")
+    private boolean cookieSecure;
+
     @Override
     public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
         //退出成功，执行该方法，在该方法中返回json给前端，就行了
@@ -39,12 +45,17 @@ public class MyLogoutSuccessHandler implements LogoutSuccessHandler {
         // 单设备登录互斥保护：只有"当前退出设备的token仍是Redis中的最新token"才清除登录态。
         // 否则说明该账号已在其他设备重新登录（当前设备是被顶掉的旧设备），
         // 若此处无条件删除，会把新设备的有效token误删，导致新登录的设备也被迫下线。
+        // 请求能走到这里，说明过滤器已经验过 Access Token，这里再取一次 sid 用于比对
         String key = Constants.REDIS_JWT_KEY + tUser.getId();
-        String currentToken = request.getHeader(Constants.TOKEN_NAME);
-        String redisToken = (String) redisService.getValue(key);
-        if (StringUtils.hasText(redisToken) && redisToken.equals(currentToken)) {
+        String currentSid = JWTUtils.verifyAccessToken(request.getHeader(Constants.TOKEN_NAME))
+                .getClaim("sid").asString();
+        LoginSession session = LoginSession.parse((String) redisService.getValue(key));
+        if (session != null && session.sid().equals(currentSid)) {
             redisService.removeValue(key);
         }
+
+        // 无论上面是否删了 Redis，本设备的 Refresh Cookie 都要清除
+        RefreshCookieHelper.clear(response, cookieSecure);
 
         // AI 聊天记录与登录态同生命周期：退出登录即永久清除。
         // 注意此处不做"最新token"校验——聊天记录绑定的是登录人本身而非设备，

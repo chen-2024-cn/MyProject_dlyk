@@ -9,20 +9,20 @@ public class Constants {
     public static final String LOGIN_URI = "/api/login";
 
     //redis的key的命名规范： 项目名:模块名:功能名:唯一业务参数(比如用户id)
-    public static final String REDIS_JWT_KEY = "dlyk:user:login:";
+    public static final String REDIS_JWT_KEY = "apex_sales:user:login:";
 
     //redis中负责人的key
-    public static final String REDIS_OWNER_KEY = "dlyk:user:owner";
+    public static final String REDIS_OWNER_KEY = "apex_sales:user:owner";
 
     // 负责人列表缓存的兜底过期时间（分钟）：即使有绕过应用的直连数据库修改（或漏删缓存），
     // 缓存也会到期自动失效并由 Cache-Aside 回源重建，保证最终一致，而非永久脏数据
     public static final Long REDIS_OWNER_KEY_EXPIRE_MINUTES = 10L;
 
     // 登录失败计数器的 Redis Key 前缀
-    public static final String REDIS_LOGIN_FAIL_KEY = "dlyk:login:fail:";
+    public static final String REDIS_LOGIN_FAIL_KEY = "apex_sales:login:fail:";
 
     // 登录锁的 Redis Key 前缀
-    public static final String REDIS_LOGIN_LOCK_KEY = "dlyk:login:lock:";
+    public static final String REDIS_LOGIN_LOCK_KEY = "apex_sales:login:lock:";
 
     // 登录失败计数器的有效期：10分钟
     public static final Long LOGIN_FAIL_EXPIRE_MINUTES = 10L;
@@ -31,13 +31,13 @@ public class Constants {
     public static final Long LOGIN_LOCK_EXPIRE_MINUTES = 30L;
 
     // 忘记密码限流防刷 limit 的 Key 前缀
-    public static final String REDIS_RESET_PWD_LIMIT_KEY = "dlyk:reset_pwd:limit:";
+    public static final String REDIS_RESET_PWD_LIMIT_KEY = "apex_sales:reset_pwd:limit:";
 
     // 忘记密码缓存验证码的 Key 前缀
-    public static final String REDIS_RESET_PWD_CODE_KEY = "dlyk:reset_pwd:code:";
+    public static final String REDIS_RESET_PWD_CODE_KEY = "apex_sales:reset_pwd:code:";
 
     // 忘记密码输错次数计数器的 Key 前缀
-    public static final String REDIS_RESET_PWD_FAIL_KEY = "dlyk:reset_pwd:fail_count:";
+    public static final String REDIS_RESET_PWD_FAIL_KEY = "apex_sales:reset_pwd:fail_count:";
 
     // 重置密码验证码有效期：300秒（5分钟）
     public static final Long RESET_PWD_CODE_EXPIRE_SECONDS = 300L;
@@ -53,6 +53,21 @@ public class Constants {
 
     //jwt过期时间60分钟
     public static final Long DEFAULT_EXPIRE_TIME = 60 * 60L;
+
+    //Access Token有效期：15min。被窃取后可被滥用的最长时间窗口
+    public static final Long ACCESS_TTL_SECONDS = 15 * 60L;
+
+    //装载Refresh Token的cookie名称
+    public static final String REFRESH_COOKIE_NAME = "apex_sales_refresh";
+
+    /** 刷新接口地址（过滤器放行、控制器映射都引用它，避免硬编码散落） */
+    public static final String REFRESH_URI = "/api/auth/refresh";
+    
+    /** Cookie 的 Path：浏览器只会在请求该路径下的接口时才携带 Refresh Cookie */
+    public static final String REFRESH_COOKIE_PATH = "/api/auth";
+
+    /** 靠 Refresh Cookie 退出的接口。Path 落在 REFRESH_COOKIE_PATH 之下，浏览器才会带上 Cookie */
+    public static final String LOGOUT_BY_COOKIE_URI = "/api/auth/logout";
 
     //分页时每页显示10条数据
     public static final int PAGE_SIZE = 10;
@@ -71,8 +86,6 @@ public class Constants {
 
     public static final String EMPTY = "";
 
-    //导出Excel的接口路径
-    public static final String EXPORT_EXCEL_URI = "/api/exportExcel";
 
     public static final String EXCEL_FILE_NAME = "客户信息数据";
 
@@ -84,7 +97,7 @@ public class Constants {
     public static final String ROLE_ADMIN = "admin";
 
     /** 已开通的增值能力 Redis Key 前缀（完整 key = 前缀 + userId + ":" + abilityKey） */
-    public static final String REDIS_AI_PREMIUM_ABILITY_KEY = "dlyk:ai:premium:";
+    public static final String REDIS_AI_PREMIUM_ABILITY_KEY = "apex_sales:ai:premium:";
 
     /** 未开通能力的负缓存 Key 后缀（防止缓存穿透：未付费请求不重复打库） */
     public static final String REDIS_AI_PREMIUM_ABILITY_DENY_SUFFIX = ":deny";
@@ -104,7 +117,7 @@ public class Constants {
     public static final String AI_PAYMENT_ORDER_NO_PREFIX = "AI";
 
     /** AI 聊天记录 Redis Key 前缀（完整 key = 前缀 + userId，登录态内保留，登出即删） */
-    public static final String REDIS_AI_CHAT_HISTORY_KEY = "dlyk:ai:chat_history:";
+    public static final String REDIS_AI_CHAT_HISTORY_KEY = "apex_sales:ai:chat_history:";
 
     /** AI 聊天记录保留条数上限（超出后滚动丢弃最早的消息，防单 key 膨胀） */
     public static final int AI_CHAT_HISTORY_MAX_SIZE = 100;
@@ -113,16 +126,25 @@ public class Constants {
     public static final String AI_EXPORT_DIR = "target/ai-export";
 
     /** AI 批量导入用户时未提供密码的统一初始密码 */
-    public static final String AI_IMPORT_DEFAULT_PASSWORD = "Dlyk@2026";
+    public static final String AI_IMPORT_DEFAULT_PASSWORD = "apexSales@2026";
 
     // ------------------------------------------------------------------
     // 交易流水号（Redis 原子序列，避免并发下的重号）
     // ------------------------------------------------------------------
 
     /** 交易流水号当日序列的 Redis Key 前缀（完整 key = 前缀 + yyyyMMdd） */
-    public static final String REDIS_TRAN_NO_SEQ_KEY = "dlyk:tran:no:seq:";
+    public static final String REDIS_TRAN_NO_SEQ_KEY = "apex_sales:tran:no:seq:";
 
     /** 交易流水号序列 key 的存活小时数（跨天自然切换，48h 充分覆盖单日使用） */
     public static final Long TRAN_NO_SEQ_EXPIRE_HOURS = 48L;
 
+    /**
+     * 登录账号归一化：失败计数 key 和锁 key 必须用同一个规范写法。
+     * 数据库 login_act 不区分大小写、忽略尾随空格，所以 admin / Admin / "admin " 登录的是同一个账号，
+     * 如果 key 直接拼原始输入，攻击者换着写法就能无限次试密码。
+     * Locale.ROOT 避免在土耳其语等环境下 "I".toLowerCase() 变成 "ı"。
+     */
+    public static String normalizeLoginAct(String loginAct) {
+        return loginAct == null ? "" : loginAct.trim().toLowerCase(java.util.Locale.ROOT);
+    }
 }

@@ -3,6 +3,7 @@ package com.cyk.service.impl;
 import com.alibaba.excel.util.BooleanUtils;
 import com.cyk.constants.Constants;
 import com.cyk.exception.BusinessException;
+import com.cyk.manager.AuthorityManager;
 import com.cyk.manager.RedisManager;
 import com.cyk.mapper.TPermissionMapper;
 import com.cyk.mapper.TRoleMapper;
@@ -66,6 +67,9 @@ public class UserServiceImpl implements UserService {
 
     @Resource
     private com.cyk.mapper.TUserRoleMapper tUserRoleMapper;
+
+    @Resource
+    private AuthorityManager authorityManager;
     /**
      * 登录查询
      * @param username
@@ -75,7 +79,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserDetails loadUserByUsername( String username) throws UsernameNotFoundException {
         // 核心优化：结合用户深度意见，将登录锁定 Key 提升入 Constants 集中管理，清除最后一处“硬编码魔法值”
-        String lockKey = Constants.REDIS_LOGIN_LOCK_KEY + username;
+        String lockKey = Constants.REDIS_LOGIN_LOCK_KEY + Constants.normalizeLoginAct(username);
         if (redisService.hasKey(lockKey)) {
             throw new LockedException("该账号因连续多次密码输入错误已被锁定，请在大约 30 分钟后再试！");
         }
@@ -155,8 +159,9 @@ public class UserServiceImpl implements UserService {
             return R.FAIL("发送验证码太频繁了，请稍候 60 秒后再试！");
         }
 
-        // 3. 生成 6 位纯数字安全验证码
-        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+        // 3. 生成 6 位纯数字安全验证码。用 SecureRandom 而不是 Math.random：
+        //    后者是可预测的伪随机数，攻击者观察几个输出就能推算后续的值，不适合生成验证码
+        String code = String.valueOf(100000 + new java.security.SecureRandom().nextInt(900000));
 
         // 4. 将核验验证码存入 Redis 并分别设置 5分钟 与 60秒 生存期限（原子写入，常量统一管理有效期）
         String codeKey = Constants.REDIS_RESET_PWD_CODE_KEY + loginAct;
@@ -170,7 +175,7 @@ public class UserServiceImpl implements UserService {
         return R.OK("核验验证码已发出，请注意查看（本地联调可在终端/后台直接复制）");
     }
 
-    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public R executeResetPassword(String loginAct, String code, String newPassword) {
         String codeKey = Constants.REDIS_RESET_PWD_CODE_KEY + loginAct;
@@ -184,12 +189,13 @@ public class UserServiceImpl implements UserService {
         String failKey = Constants.REDIS_RESET_PWD_FAIL_KEY + loginAct;
         Long maxFailCount = Constants.RESET_PWD_MAX_FAIL_COUNT;
         if (!cachedCode.equals(code.trim())) {
-            Long currentFailCount = 1L;
-            if (redisService.hasKey(failKey)) {
-                currentFailCount = Long.parseLong(String.valueOf(redisService.getValue(failKey))) + 1L;
+            // INCR 是原子自增：并发的错误提交各自拿到不同的计数，
+            // 不会像"读出、加一、写回"那样互相覆盖，让攻击者多试几次
+            Long currentFailCount = redisService.incr(failKey);
+            if (currentFailCount == 1 || Long.valueOf(-1).equals(redisService.getExpireSeconds(failKey))) {
+                // 计数器与验证码同寿命；TTL 为 -1 说明上次 INCR 之后、EXPIRE 之前进程挂了，这里补上让它自愈
+                redisService.expire(failKey, Constants.RESET_PWD_CODE_EXPIRE_SECONDS, TimeUnit.SECONDS);
             }
-            // 错误计数器与验证码同寿命，原子写入
-            redisService.setValue(failKey, String.valueOf(currentFailCount), Constants.RESET_PWD_CODE_EXPIRE_SECONDS, TimeUnit.SECONDS);
 
             // 达到上限次数，直接熔断
             if (currentFailCount >= maxFailCount) {
@@ -203,6 +209,9 @@ public class UserServiceImpl implements UserService {
         // 验证彻底通过，重写实体密码落盘
         TUser user = tUserMapper.selectByLoginAct(loginAct);
         if (user == null) {
+
+
+
             return R.FAIL("重置动作受重组保护，暂无法找到指定要重载的账号数据对象- admin。");
         }
 
@@ -215,6 +224,9 @@ public class UserServiceImpl implements UserService {
             // 核对一键清扫
             redisService.delete(codeKey);
             redisService.delete(failKey);
+            redisService.delete(Constants.REDIS_JWT_KEY + user.getId());
+            redisService.delete(Constants.REDIS_LOGIN_LOCK_KEY + Constants.normalizeLoginAct(loginAct));
+            redisService.delete(Constants.REDIS_LOGIN_FAIL_KEY + Constants.normalizeLoginAct(loginAct));
             return R.OK("恭喜您已在 Service 事务保护下成功重设密码！");
         }
 
@@ -353,14 +365,12 @@ public class UserServiceImpl implements UserService {
     /**
      * 角色发生实质变化时，销毁目标用户的登录态，促使其重新登录以换取新权限。
      *
-     * <p>【修复的安全隐患】本系统的鉴权分两条独立路径：</p>
-     * <ul>
-     *   <li>前端 {@code v-hasPermission} ← {@code /api/login/info} <b>实时查库</b>，改完立即生效；</li>
-     *   <li>后端 {@code @PreAuthorize} ← {@code TokenVerifyFilter} 从 <b>JWT 载体</b>重建 SecurityContext，
-     *       用的是签发时刻的权限快照。</li>
-     * </ul>
-     * <p>两条路径不一致会导致：管理员收走某人的角色后，该用户前端按钮消失、看似已失权，
-     * 但只要直接调接口，旧 token 仍按原权限放行——最长可持续到 token 过期（1 小时，"记住我"7 天）。</p>
+     * <p>【现状说明】双 Token 改造之后，令牌里不再携带任何权限：{@code TokenVerifyFilter} 每次请求都通过
+     * {@code AuthorityManager} 按用户 ID 实时查库，所以角色变更对已登录用户的下一个请求就会生效，
+     * 不再存在"旧令牌按旧权限放行"的越权窗口。</p>
+     * <p>这里仍然保留踢下线，是有意为之的保守做法：权限变化后让对方重新走一次登录，
+     * 界面（菜单、按钮缓存）与后端鉴权能立刻保持一致。如果以后觉得打扰，
+     * 可以删掉这个踢人逻辑，安全性不受影响。</p>
      *
      * <p>【与既有范式对齐】本项目已有同样的处理先例：
      * {@code aiUpdateUserRolesAndStatus} 在禁用账号时删 key、{@code deleteById} 与 {@code batchDelUserId}
@@ -389,8 +399,9 @@ public class UserServiceImpl implements UserService {
         //清理登录失败计数与账号锁缓存（若有）
         TUser u = tUserMapper.selectByPrimaryKey(id);
         if (u != null && u.getLoginAct() != null) {
-            redisService.delete(Constants.REDIS_LOGIN_FAIL_KEY + u.getLoginAct());
-            redisService.delete(Constants.REDIS_LOGIN_LOCK_KEY + u.getLoginAct());
+            String normalized = Constants.normalizeLoginAct(u.getLoginAct());
+            redisService.delete(Constants.REDIS_LOGIN_FAIL_KEY + normalized);
+            redisService.delete(Constants.REDIS_LOGIN_LOCK_KEY + normalized);
         }
         // 【修复的既有缺陷】用户可能被业务数据外键引用（t_activity.owner_id / create_by 等，
         // 均为 ON DELETE RESTRICT）。原版直接 deleteByPrimaryKey 抛 SQLIntegrityConstraintViolation，
@@ -449,6 +460,17 @@ public class UserServiceImpl implements UserService {
         Integer loginId = JWTUtils.parseUserFromJWT(userQuery.getToken()).getId();
         tUser.setEditBy(loginId);//编辑人
         int i = tUserMapper.updateByPrimaryKeySelective(tUser);
+        // 改了密码，或账号被禁用/锁定/过期：立即销毁登录态，不等 Access 自然过期（最长 15 分钟）。
+        // 只在这几类变化真的发生时才踢，普通编辑（改姓名、手机号）不会误踢。
+        // 取值用 Integer.valueOf(0).equals(...)：前端没传的字段是 null，null 不会被当成 0
+        boolean passwordChanged = StringUtils.hasText(userQuery.getLoginPwd());
+        boolean accountBlocked = Integer.valueOf(0).equals(tUser.getAccountEnabled())
+                || Integer.valueOf(0).equals(tUser.getAccountNoLocked())
+                || Integer.valueOf(0).equals(tUser.getAccountNoExpired())
+                || Integer.valueOf(0).equals(tUser.getCredentialsNoExpired());
+        if (i >= 1 && (passwordChanged || accountBlocked)) {
+            redisService.delete(Constants.REDIS_JWT_KEY + tUser.getId());
+        }
         //前端传了 roleIds 就同步调整角色（未传则不动角色绑定）
         if (i >= 1 && userQuery.getRoleIds() != null) {
             boolean rolesChanged = assignRoles(tUser.getId(), userQuery.getRoleIds());
@@ -535,26 +557,12 @@ public class UserServiceImpl implements UserService {
      * @return 生效的按钮权限码列表
      */
     private List<String> resolveButtonPermissions(Integer userId, List<String> roleList) {
-        if (roleList != null && roleList.contains(Constants.ROLE_ADMIN)) {
-            return tPermissionMapper.selectAllButtonCodes();
-        }
-        List<String> codes = new ArrayList<>();
-        for (TPermission tPermission : tPermissionMapper.selectButtonPermissionByUserId(userId)) {
-            codes.add(tPermission.getCode());
-        }
-        return codes;
+        return authorityManager.resolveButtonPermissions(userId, roleList);
     }
 
     @Override
     public List<com.cyk.model.TRole> getRoleList() {
         return tRoleMapper.selectRoleList();
-    }
-
-    @Override
-    public void updateLastLoginTime(TUser tUser) {
-        // 单列精准更新最近登录时间，绝不使用 updateByPrimaryKeySelective 把登录时的 JWT 旧快照整表回写，
-        // 否则会覆盖用户在个人中心刚编辑的最新姓名/手机/邮箱（"编辑后不生效"的根因之一）
-        tUserMapper.updateLastLoginTimeById(tUser.getId());
     }
 
     @Override
@@ -668,7 +676,12 @@ public class UserServiceImpl implements UserService {
         TUser user = new TUser();
         user.setId(userId);
         user.setLoginPwd(encodedPassword);
-        return tUserMapper.updateByPrimaryKeySelective(user);
+        int rows = tUserMapper.updateByPrimaryKeySelective(user);
+        if (rows == 1) {
+            // 密码变了，旧令牌必须作废：删掉会话后，过滤器和刷新接口都会返回 903
+            redisService.delete(Constants.REDIS_JWT_KEY + userId);
+        }
+        return rows;
     }
 
 

@@ -1,5 +1,5 @@
 import {createRouter, createWebHistory} from "vue-router";
-import {getTokenName} from "@/util/util.js";
+import {restoreSession} from "@/http/httpRequest.js";
 
 const router = createRouter({
     history:createWebHistory(),
@@ -122,25 +122,18 @@ const router = createRouter({
 // ============================================================================
 // 采用 Vue Router 4 的「返回值」风格，而非已废弃的 next() 回调
 // （next(value) 在 Vue Router 4 会打印 deprecation 警告；直接 return 目标或 undefined 等价且更简洁）
-router.beforeEach((to) => {
-    // 取值优先级与请求拦截器一致：会话级 sessionStorage → "记住我" 的 localStorage。
-    // 这里不调用 getToken()，因为它内部会在无令牌时弹出重新登录对话框，
-    // 与守卫自身的重定向行为重复叠加，会造成"还没跳转就先弹窗"的割裂体验。
-    const token = window.sessionStorage.getItem(getTokenName())
-        || window.localStorage.getItem(getTokenName());
-
+router.beforeEach(async (to) => {
     // 目标路由自身或其任一祖先声明了 requiresAuth（子路由未单独声明时沿用父级）
     const needAuth = to.matched.some(record => record.meta && record.meta.requiresAuth);
 
-    if (needAuth && !token) {
-        // 重定向登录页，并把原目标记入 redirect 参数，登录后可回跳（体验闭环）
-        return { path: '/', query: { redirect: to.fullPath } };
+    if (needAuth) {
+        // 内存里没有令牌 ≠ 没登录：刷新页面、新开标签页时内存都是空的。
+        // restoreSession 会拿 HttpOnly Cookie 去后端换一个新令牌（内存已有时直接返回 true）
+        if (!(await restoreSession())) {
+            // 重定向登录页，并把原目标记入 redirect 参数，登录后可回跳（体验闭环）
+            return { path: '/', query: { redirect: to.fullPath } };
+        }
     }
-    if (to.path === '/' && token) {
-        // 已登录再回登录页，直接送进工作台，避免重复登录
-        return '/dashboard';
-    }
-    // 返回 undefined（或不 return）= 放行，等价于旧写法里的 next()
+    // 返回 undefined = 放行
 })
-
 export default router

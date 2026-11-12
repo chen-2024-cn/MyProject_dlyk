@@ -239,9 +239,8 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { doGet } from "@/http/httpRequest.js"
-import axios from "axios"
-import { getToken, messageFrame } from "@/util/util.js"
+import { doGet, doDownload } from "@/http/httpRequest.js"
+import { messageFrame } from "@/util/util.js"
 import router from "@/router/router.js";
 import { ElMessage } from 'element-plus'
 import {
@@ -400,24 +399,17 @@ const handleSelectionChange = (selectionDataArray) => {
 }
 
 /**
- * 导出 Excel 核心逻辑。
- *
- * 【修复】旧版创建的隐藏 iframe 永不从 DOM 移除，每导一次就往 body 里永久堆一个节点
- * （长时间使用的内存泄露）。现在下载触发后延时移除 iframe。
- * 【体验】导出无 loading/结果反馈，用户点了不知是否成功；补上轻量提示。
+ * 导出 Excel：走 axios 下载 Blob，令牌在请求头里，不再拼进 URL。
  */
-const exportExcel = (ids) => {
-  const token = getToken()
-  const iframe = document.createElement("iframe")
-  let url = axios.defaults.baseURL + "/api/exportExcel?Authorization=" + token
-  if (ids) {
-    url += "&ids=" + ids
+const exportExcel = async (ids) => {
+  try {
+    await doDownload("/api/exportExcel", ids ? { ids } : {}, "客户信息数据.xlsx")
+  } catch (e) {
+    // 9xx 认证失效由拦截器弹窗，抛出的不是 Error，这里不重复提示
+    if (e instanceof Error) {
+      ElMessage.error(e.message)
+    }
   }
-  iframe.src = url
-  iframe.style.display = "none"
-  document.body.appendChild(iframe)
-  // 浏览器接管下载后移除节点，防止 DOM 节点持续堆积
-  setTimeout(() => iframe.remove(), 3000)
 }
 
 // 批量导出（当前筛选条件下的全部数据）

@@ -17,6 +17,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import com.cyk.util.LoginSession;
+import com.cyk.util.RefreshCookieHelper;
+import org.springframework.beans.factory.annotation.Value;
+import java.util.UUID;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -27,49 +31,57 @@ public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHand
     @Resource
     RedisService redisService;
 
+    @Resource
+    private com.cyk.mapper.TUserMapper tUserMapper;
+
+    @Value("${auth.cookie-secure:false}")
+    private boolean cookieSecure;
+
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
         //登录成功，执行该方法，在该方法中返回json给前端，就行了
         TUser tUser = (TUser) authentication.getPrincipal();
 
-        //1、根据"记住我"决定会话有效期
+        //1、"记住我"现在只决定 Refresh Token（以及对应 Cookie 与 Redis 会话）的有效期；
+        //   Access Token 固定 15 分钟，与"记住我"无关
         String key = Constants.REDIS_JWT_KEY + tUser.getId();
-        String rememberMe = request.getParameter("rememberMe");
-        long ttl = Boolean.parseBoolean(rememberMe) ? Constants.EXPIRE_TIME : Constants.DEFAULT_EXPIRE_TIME;
+        boolean rememberMe = Boolean.parseBoolean(request.getParameter("rememberMe"));
+        long refreshTtl = rememberMe ? Constants.EXPIRE_TIME : Constants.DEFAULT_EXPIRE_TIME;
 
-        // 【安全修复】JWT 负载脱敏：绝不能把密码哈希打进 token。
-        // 旧版直接 JSONUtils.toJSON(tUser)，JWT payload 仅 base64 编码（非加密），
-        // 任何持有该 token 的人（含浏览器插件/XSS）解码即可拿到 BCrypt 哈希离线爆破。
-        // 密码只在 DB 中存储、只在登录时由 DaoAuthenticationProvider 内存中比对，
-        // 请求级身份已由 SecurityContext 承载，token 内无须保留凭证。
-        tUser.setLoginPwd(null);
+        // 负载用白名单构造：只放 id / 账号 / 姓名，密码哈希、角色、权限、菜单一概不放
+        String userJSON = JWTUtils.toTokenUserJson(tUser);
 
-        //将用户对象tUser转json作为负载数据放入jwt（roleList/permissionList 必须保留：
-        // TokenVerifyFilter 重建权限、DataScopeAspect 判定 admin 都依赖这两个字段）
-        String userJSON = JSONUtils.toJSON(tUser);
-        //2、生成 jwt：过期声明与 Redis TTL 同值，双端语义一致（防"僵尸 token"）
-        String jwt = JWTUtils.createJWT(userJSON, ttl);
-        //3、写入Redis，原子写入（SET + EX 一条命令完成）
-        redisService.setValue(key, jwt, ttl, TimeUnit.SECONDS);
+        //2、会话标识：sid 本次登录期间不变；jti 是首张 Refresh 的编号，之后每次刷新都会换新
+        String sid = UUID.randomUUID().toString();
+        String jti = UUID.randomUUID().toString();
 
-        // 安全提示：严禁将完整的 JWT 明文写入日志（等同于泄露登录凭证），
-        // 只记录 Redis Key 与 JWT 的摘要长度，便于排查单设备登录问题且不留存敏感值。
-        log.info("登录成功：用户[{}]，Redis Token Key：{}，JWT长度：{}，TTL：{} 秒，TTL类型：{}",
-                tUser.getLoginAct(), key, jwt.length(), ttl, Boolean.parseBoolean(rememberMe) ? "记住我" : "普通会话");
+        //3、签发双 Token
+        String accessToken = JWTUtils.createAccessToken(userJSON, sid, Constants.ACCESS_TTL_SECONDS);
+        String refreshToken = JWTUtils.createRefreshToken(tUser.getId(), sid, jti, rememberMe, refreshTtl);
 
-        // 3、清除登录失败和锁定缓存
-        String failKey = Constants.REDIS_LOGIN_FAIL_KEY + tUser.getLoginAct();
-        String lockKey = Constants.REDIS_LOGIN_LOCK_KEY + tUser.getLoginAct();
-        redisService.removeValue(failKey);
-        redisService.removeValue(lockKey);
+        //4、Redis 记录"当前唯一有效的会话"。同一账号再次登录会覆盖这个值，
+        //   旧设备的 sid / jti 立刻对不上 —— 单设备互斥语义保持不变
+        redisService.setValue(key, new LoginSession(sid, jti).toRedisValue(), refreshTtl, TimeUnit.SECONDS);
 
-        //登录成功的统一结果
-        R result = R.OK(jwt);
+        //5、Refresh Token 放进 HttpOnly Cookie，JS 永远读不到
+        RefreshCookieHelper.write(response, refreshToken, rememberMe, refreshTtl, cookieSecure);
 
-        //把R对象转成json
-        String resultJSON = JSONUtils.toJSON(result);
+        // 安全提示：严禁把令牌明文写入日志，只记录 key、sid 前 8 位和有效期
+        log.info("登录成功：用户[{}]，Redis Key：{}，sid：{}…，Refresh TTL：{} 秒，TTL类型：{}",
+                tUser.getLoginAct(), key, sid.substring(0, 8), refreshTtl, rememberMe ? "记住我" : "普通会话");
 
-        //把R以json返回给前端
-        ResponseUtils.write(response, resultJSON);
+        // 清除登录失败和锁定缓存。key 必须和失败处理器、loadUserByUsername 用同一个归一化规则，
+        // 这里的 tUser 是数据库里查到的账号，不管用户当时输入的是 Admin 还是 admin，清掉的都是同一个 key
+        String normalized = Constants.normalizeLoginAct(tUser.getLoginAct());
+        redisService.removeValue(Constants.REDIS_LOGIN_FAIL_KEY + normalized);
+        redisService.removeValue(Constants.REDIS_LOGIN_LOCK_KEY + normalized);
+
+        // 记录最近登录时间（单列更新）。放在登录成功这里才名副其实：
+        // 以前挂在 /api/login/info 上，每打开一次页面就更新一次，记录的其实是"最近打开页面的时间"
+        tUserMapper.updateLastLoginTimeById(tUser.getId());
+
+        //登录成功的统一结果：响应体里依然是 R.OK(token)，前端取 response.data.data 的写法不用改，
+        //只是这个 token 现在是 15 分钟的 Access Token
+        ResponseUtils.write(response, JSONUtils.toJSON(R.OK(accessToken)));
     }
 }

@@ -53,8 +53,12 @@ function loadPermissionSet() {
             })
             .catch(() => {
                 // 拉取失败（多为令牌失效，交由响应拦截器处理跳转），本轮放行避免误删按钮
-                permissionPromise = null;
                 return new Set();
+            })
+            .finally(() => {
+                // 请求结束后释放：在飞的时候并发调用者仍共用同一个 Promise（防 N+1），
+                // 结束后权限只留在 sessionStorage 一个来源，登录时 removeToken 会把它清掉
+                permissionPromise = null;
             });
     }
     return permissionPromise;
